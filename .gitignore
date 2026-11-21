@@ -1,0 +1,28 @@
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Go build and test output
+/bin/
+/tmp/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+*.prof
+
+# Runtime logs
+*.log
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
