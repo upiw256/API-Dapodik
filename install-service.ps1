@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 
 $ErrorActionPreference = 'Stop'
-$serviceName = 'DapodikAPI'
+$taskName = 'DapodikAPI'
 $exePath = Join-Path $PSScriptRoot 'dapodik-api.exe'
 $envPath = Join-Path $PSScriptRoot '.env'
 
@@ -12,30 +12,40 @@ if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
     throw "File .env tidak ditemukan: $envPath"
 }
 
-$service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-if ($null -eq $service) {
-    New-Service -Name $serviceName `
-        -DisplayName 'Dapodik API' `
-        -Description 'Read-only REST API untuk data Dapodik' `
-        -BinaryPathName ('"{0}"' -f $exePath) `
-        -StartupType Automatic | Out-Null
-} else {
-    if ($service.Status -ne 'Stopped') {
-        Stop-Service -Name $serviceName -Force
-        (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
-    }
-    $binaryPath = '"{0}"' -f $exePath
-    & sc.exe config $serviceName "binPath= $binaryPath" 'start= auto' | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Gagal memperbarui konfigurasi service $serviceName (sc.exe exit $LASTEXITCODE)"
-    }
-    Set-Service -Name $serviceName -StartupType Automatic
+$action = New-ScheduledTaskAction `
+    -Execute $exePath `
+    -WorkingDirectory $PSScriptRoot
+
+$trigger = New-ScheduledTaskTrigger -AtStartup
+
+$settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -ExecutionTimeLimit (New-TimeSpan -Days 3650)
+
+# Jalankan sebagai SYSTEM saat boot tanpa perlu login user
+$principal = New-ScheduledTaskPrincipal `
+    -UserId 'NT AUTHORITY\SYSTEM' `
+    -LogonType ServiceAccount `
+    -RunLevel Highest
+
+if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
 }
 
-& sc.exe failure $serviceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "Gagal mengatur restart otomatis saat API berhenti (sc.exe exit $LASTEXITCODE)"
-}
+Register-ScheduledTask `
+    -TaskName $taskName `
+    -Description 'Read-only REST API untuk data Dapodik' `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -Principal $principal `
+    -Force | Out-Null
 
-Start-Service -Name $serviceName
-Get-Service -Name $serviceName | Select-Object Name, DisplayName, Status, StartType
+Start-ScheduledTask -TaskName $taskName
+Start-Sleep -Seconds 2
+Get-ScheduledTask -TaskName $taskName | Select-Object TaskName, State
+Get-ScheduledTaskInfo -TaskName $taskName | Select-Object TaskName, LastRunTime, LastTaskResult, NextRunTime
