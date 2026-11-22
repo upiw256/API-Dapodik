@@ -75,12 +75,16 @@ func (h *Handler) listAnggota(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := h.service.ListAnggota(r.Context(), id)
+	item, err := h.service.ListAnggota(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.WriteError(w, http.StatusNotFound, "rombel tidak ditemukan")
+			return
+		}
 		response.WriteInternalError(w, r, "gagal mengambil anggota rombel", err)
 		return
 	}
-	response.WriteSuccess(w, http.StatusOK, "anggota rombel berhasil diambil", items, nil)
+	response.WriteSuccess(w, http.StatusOK, "anggota rombel berhasil diambil", item, nil)
 }
 func (h *Handler) listPembelajaran(w http.ResponseWriter, r *http.Request) {
 	id, ok := validRombelID(w, r)

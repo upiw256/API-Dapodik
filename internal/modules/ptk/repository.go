@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"dapodik-readonly-api/internal/period"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,11 +21,16 @@ type Store interface {
 }
 
 type PostgresRepository struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	period period.Selection
 }
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func NewPostgresRepository(pool *pgxpool.Pool, selected ...period.Selection) *PostgresRepository {
+	r := &PostgresRepository{pool: pool}
+	if len(selected) > 0 {
+		r.period = selected[0]
+	}
+	return r
 }
 
 const activeRegistration = `
@@ -44,6 +50,9 @@ const activeRegistration = `
 	)`
 
 func (r *PostgresRepository) List(ctx context.Context, page, limit int, filters Filters) ([]ListItem, int64, error) {
+	if r.period.TahunAjaranID != 0 {
+		filters.TahunAjaranID = fmt.Sprint(r.period.TahunAjaranID)
+	}
 	const searchFilter = `
 		AND ($4::text = ''
 		     OR p.nama ILIKE '%' || $4::text || '%'
@@ -201,6 +210,7 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 		       pt.jenis_ptk_id, pt.jabatan_ptk_id
 		FROM public.ptk_terdaftar AS pt
 		WHERE pt.soft_delete = 0
+		  AND ($2::bigint = 0 OR pt.tahun_ajaran_id = $2::bigint)
 		ORDER BY pt.ptk_id, pt.tahun_ajaran_id DESC, pt.last_update DESC
 	) AS registration ON registration.ptk_id = p.ptk_id
 	LEFT JOIN ref.jenis_ptk AS jenis
@@ -213,7 +223,7 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 	  AND p.soft_delete = 0`
 
 	var item Detail
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := r.pool.QueryRow(ctx, query, id, r.period.TahunAjaranID).Scan(
 		&item.PTKID,
 		&item.Nama,
 		&item.NIP,
@@ -267,6 +277,9 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 }
 
 func (r *PostgresRepository) ListPembelajaran(ctx context.Context, id, semesterID string) ([]Pembelajaran, error) {
+	if r.period.SemesterID != "" {
+		semesterID = r.period.SemesterID
+	}
 	const query = `
 		SELECT pb.pembelajaran_id::text,
 	       btrim(pb.semester_id),

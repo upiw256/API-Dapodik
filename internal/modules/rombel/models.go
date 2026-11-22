@@ -87,6 +87,13 @@ type Anggota struct {
 	JenisKeluar              *string `json:"jenis_keluar,omitempty"`
 }
 
+type AnggotaResponse struct {
+	RombelID  string    `json:"rombongan_belajar_id"`
+	NamaKelas string    `json:"nama_kelas"`
+	WaliKelas *string   `json:"wali_kelas,omitempty"`
+	Anggota   []Anggota `json:"anggota"`
+}
+
 type Pembelajaran struct {
 	ID                  string  `json:"pembelajaran_id"`
 	SemesterID          string  `json:"semester_id"`

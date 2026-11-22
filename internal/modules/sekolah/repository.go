@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"dapodik-readonly-api/internal/period"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -21,11 +22,16 @@ type Store interface {
 }
 
 type PostgresRepository struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	period period.Selection
 }
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func NewPostgresRepository(pool *pgxpool.Pool, selected ...period.Selection) *PostgresRepository {
+	r := &PostgresRepository{pool: pool}
+	if len(selected) > 0 {
+		r.period = selected[0]
+	}
+	return r
 }
 
 const profileSelect = `
@@ -193,6 +199,9 @@ func valueOrEmpty(value *string) string {
 }
 
 func (r *PostgresRepository) GetLongitudinal(ctx context.Context, id, semesterID string) ([]Longitudinal, error) {
+	if r.period.SemesterID != "" {
+		semesterID = r.period.SemesterID
+	}
 	const query = `
 		SELECT sl.sekolah_id::text,
 		       btrim(sl.semester_id),
@@ -461,6 +470,9 @@ func (r *PostgresRepository) ListJurusan(ctx context.Context, id string) ([]Juru
 }
 
 func (r *PostgresRepository) ListRombel(ctx context.Context, id, semesterID string) ([]Rombel, error) {
+	if r.period.SemesterID != "" {
+		semesterID = r.period.SemesterID
+	}
 	const query = `
 		SELECT rb.rombongan_belajar_id::text,
 		       btrim(rb.semester_id),

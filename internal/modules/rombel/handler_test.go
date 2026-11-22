@@ -13,7 +13,7 @@ type fakeStore struct {
 	items        []ListItem
 	total        int64
 	detail       Detail
-	anggota      []Anggota
+	anggota      AnggotaResponse
 	pembelajaran []Pembelajaran
 	statistics   Statistics
 	err          error
@@ -30,7 +30,7 @@ func (f *fakeStore) GetDetail(_ context.Context, id string) (Detail, error) {
 	f.id = id
 	return f.detail, f.err
 }
-func (f *fakeStore) ListAnggota(_ context.Context, id string) ([]Anggota, error) {
+func (f *fakeStore) ListAnggota(_ context.Context, id string) (AnggotaResponse, error) {
 	f.id = id
 	return f.anggota, f.err
 }
@@ -121,3 +121,30 @@ func TestRombelChildRoutesValidateIDsAndHideErrors(t *testing.T) {
 		}
 	})
 }
+
+func TestAnggotaResponseIncludesClassTeacherAndMembers(t *testing.T) {
+	const id = "a1b2c3d4-e5f6-4711-8223-aabbccddeeff"
+	store := &fakeStore{anggota: AnggotaResponse{RombelID: id, NamaKelas: "X IPA 1", WaliKelas: stringPtr("Guru Contoh"), Anggota: []Anggota{{PesertaDidikID: "b1b2c3d4-e5f6-4711-8223-aabbccddeeff", Nama: "Siswa Contoh"}}}}
+	w := httptest.NewRecorder()
+	testServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/rombel/"+id+"/anggota", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	for _, field := range []string{`"nama_kelas":"X IPA 1"`, `"wali_kelas":"Guru Contoh"`, `"anggota":[{`, `"nama":"Siswa Contoh"`} {
+		if !strings.Contains(w.Body.String(), field) {
+			t.Errorf("response missing %s: %s", field, w.Body.String())
+		}
+	}
+}
+
+func TestAnggotaResponseUsesEmptyArray(t *testing.T) {
+	const id = "a1b2c3d4-e5f6-4711-8223-aabbccddeeff"
+	store := &fakeStore{anggota: AnggotaResponse{RombelID: id, NamaKelas: "X IPA 1", Anggota: []Anggota{}}}
+	w := httptest.NewRecorder()
+	testServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/rombel/"+id+"/anggota", nil))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"anggota":[]`) {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func stringPtr(value string) *string { return &value }

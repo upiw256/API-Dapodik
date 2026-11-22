@@ -5,16 +5,24 @@ import (
 	"errors"
 	"fmt"
 
+	"dapodik-readonly-api/internal/period"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrNotFound = errors.New("rombel tidak ditemukan")
 
-type PostgresRepository struct{ pool *pgxpool.Pool }
+type PostgresRepository struct {
+	pool   *pgxpool.Pool
+	period period.Selection
+}
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func NewPostgresRepository(pool *pgxpool.Pool, selected ...period.Selection) *PostgresRepository {
+	r := &PostgresRepository{pool: pool}
+	if len(selected) > 0 {
+		r.period = selected[0]
+	}
+	return r
 }
 
 const activeStudentCounts = `
@@ -35,6 +43,7 @@ WITH current_registration AS (
 
 const rombelFilter = `
 WHERE rb.soft_delete = 0
+	AND rb.jenis_rombel NOT IN (18, 51)
 	AND ($1::text = '' OR rb.sekolah_id::text = $1::text)
 	AND ($2::text = '' OR btrim(rb.semester_id) = $2::text)
 	AND ($3::text = '' OR rb.tingkat_pendidikan_id::text = $3::text)
@@ -49,6 +58,9 @@ func filterArgs(f Filters) []any {
 }
 
 func (r *PostgresRepository) List(ctx context.Context, page, limit int, f Filters) ([]ListItem, int64, error) {
+	if r.period.SemesterID != "" {
+		f.SemesterID = r.period.SemesterID
+	}
 	args := filterArgs(f)
 	var total int64
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rombongan_belajar AS rb `+rombelFilter, args...).Scan(&total); err != nil {
@@ -128,9 +140,10 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 		WHERE v.soft_delete = 0
 		GROUP BY v.rombongan_belajar_id
 	) AS validasi ON validasi.rombongan_belajar_id = rb.rombongan_belajar_id
-	WHERE rb.rombongan_belajar_id = $1::uuid AND rb.soft_delete = 0`
+	WHERE rb.rombongan_belajar_id = $1::uuid AND rb.soft_delete = 0
+	  AND ($2::text = '' OR btrim(rb.semester_id) = $2::text)`
 	var item Detail
-	err := r.pool.QueryRow(ctx, activeStudentCounts+query, id).Scan(&item.ID, &item.Nama, &item.SemesterID, &item.Semester, &item.SekolahID, &item.Sekolah, &item.TingkatPendidikanID, &item.TingkatPendidikan, &item.KurikulumID, &item.Kurikulum, &item.JenisRombel, &item.JenisRombelNama, &item.MovingClass, &item.SKS, &item.TanggalMulai, &item.TanggalSelesai, &item.KebutuhanKhususID, &item.KebutuhanKhusus, &item.PTKID, &item.WaliKelas, &item.RuangID, &item.Ruang, &item.JenisPrasarana, &item.BangunanID, &item.Bangunan, &item.JurusanSPID, &item.JurusanSP, &item.Jurusan, &item.JumlahSiswa, &item.StatusValidasi, &item.JumlahValidasi, &item.EkstrakurikulerTersedia)
+	err := r.pool.QueryRow(ctx, activeStudentCounts+query, id, r.period.SemesterID).Scan(&item.ID, &item.Nama, &item.SemesterID, &item.Semester, &item.SekolahID, &item.Sekolah, &item.TingkatPendidikanID, &item.TingkatPendidikan, &item.KurikulumID, &item.Kurikulum, &item.JenisRombel, &item.JenisRombelNama, &item.MovingClass, &item.SKS, &item.TanggalMulai, &item.TanggalSelesai, &item.KebutuhanKhususID, &item.KebutuhanKhusus, &item.PTKID, &item.WaliKelas, &item.RuangID, &item.Ruang, &item.JenisPrasarana, &item.BangunanID, &item.Bangunan, &item.JurusanSPID, &item.JurusanSP, &item.Jurusan, &item.JumlahSiswa, &item.StatusValidasi, &item.JumlahValidasi, &item.EkstrakurikulerTersedia)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Detail{}, ErrNotFound
@@ -140,7 +153,14 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 	return item, nil
 }
 
-func (r *PostgresRepository) ListAnggota(ctx context.Context, id string) ([]Anggota, error) {
+func (r *PostgresRepository) ListAnggota(ctx context.Context, id string) (AnggotaResponse, error) {
+	result := AnggotaResponse{RombelID: id, Anggota: make([]Anggota, 0)}
+	if err := r.pool.QueryRow(ctx, `SELECT rb.nama, ptk.nama FROM public.rombongan_belajar AS rb LEFT JOIN public.ptk AS ptk ON ptk.ptk_id=rb.ptk_id AND ptk.soft_delete=0 WHERE rb.rombongan_belajar_id=$1::uuid AND rb.soft_delete=0 AND ($2::text = '' OR btrim(rb.semester_id) = $2::text)`, id, r.period.SemesterID).Scan(&result.NamaKelas, &result.WaliKelas); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return AnggotaResponse{}, ErrNotFound
+		}
+		return AnggotaResponse{}, fmt.Errorf("query metadata rombel anggota: %w", err)
+	}
 	const query = `
 	SELECT ar.anggota_rombel_id::text, pd.peserta_didik_id::text, pd.nama, btrim(pd.jenis_kelamin), NULLIF(btrim(pd.nisn), ''),
 	       reg.nipd, to_char(reg.tanggal_masuk_sekolah, 'YYYY-MM-DD'), ar.jenis_pendaftaran_id::bigint, pda.nama,
@@ -173,21 +193,20 @@ func (r *PostgresRepository) ListAnggota(ctx context.Context, id string) ([]Angg
 	ORDER BY pd.nama ASC, pd.peserta_didik_id`
 	rows, err := r.pool.Query(ctx, query, id)
 	if err != nil {
-		return nil, fmt.Errorf("query anggota rombel: %w", err)
+		return AnggotaResponse{}, fmt.Errorf("query anggota rombel: %w", err)
 	}
 	defer rows.Close()
-	items := make([]Anggota, 0)
 	for rows.Next() {
 		var item Anggota
 		if err := rows.Scan(&item.AnggotaRombelID, &item.PesertaDidikID, &item.Nama, &item.JenisKelamin, &item.NISN, &item.NIPD, &item.TanggalMasuk, &item.JenisPendaftaranRombelID, &item.JenisPendaftaranRombel, &item.JenisPendaftaranAwalID, &item.JenisPendaftaranAwal, &item.AgamaID, &item.Agama, &item.JenisKeluarID, &item.JenisKeluar); err != nil {
-			return nil, fmt.Errorf("scan anggota rombel: %w", err)
+			return AnggotaResponse{}, fmt.Errorf("scan anggota rombel: %w", err)
 		}
-		items = append(items, item)
+		result.Anggota = append(result.Anggota, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate anggota rombel: %w", err)
+		return AnggotaResponse{}, fmt.Errorf("iterate anggota rombel: %w", err)
 	}
-	return items, nil
+	return result, nil
 }
 
 func (r *PostgresRepository) ListPembelajaran(ctx context.Context, id string) ([]Pembelajaran, error) {
@@ -201,8 +220,9 @@ func (r *PostgresRepository) ListPembelajaran(ctx context.Context, id string) ([
 	JOIN public.ptk AS ptk ON ptk.ptk_id = terdaftar.ptk_id AND ptk.soft_delete = 0
 	LEFT JOIN ref.mata_pelajaran AS mp ON mp.mata_pelajaran_id = pb.mata_pelajaran_id AND mp.expired_date IS NULL
 	WHERE pb.rombongan_belajar_id = $1::uuid AND pb.soft_delete = 0
+	  AND ($2::text = '' OR btrim(pb.semester_id) = $2::text)
 	ORDER BY COALESCE(mp.nama, pb.nama_mata_pelajaran), ptk.nama, pb.pembelajaran_id`
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := r.pool.Query(ctx, query, id, r.period.SemesterID)
 	if err != nil {
 		return nil, fmt.Errorf("query pembelajaran rombel: %w", err)
 	}
@@ -228,11 +248,12 @@ func (r *PostgresRepository) GetStatistics(ctx context.Context, id string) (Stat
 	JOIN public.peserta_didik AS pd ON pd.peserta_didik_id = ar.peserta_didik_id AND pd.soft_delete = 0
 	JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
 	LEFT JOIN ref.agama AS agama ON agama.agama_id = pd.agama_id AND agama.expired_date IS NULL
-	WHERE ar.rombongan_belajar_id = $1::uuid AND ar.soft_delete = 0`
-	if err := r.pool.QueryRow(ctx, `SELECT count(DISTINCT pd.peserta_didik_id)::bigint, count(DISTINCT pd.peserta_didik_id) FILTER (WHERE btrim(pd.jenis_kelamin) = 'L')::bigint, count(DISTINCT pd.peserta_didik_id) FILTER (WHERE btrim(pd.jenis_kelamin) = 'P')::bigint, count(DISTINCT pd.peserta_didik_id) FILTER (WHERE btrim(pd.jenis_kelamin) NOT IN ('L','P') OR pd.jenis_kelamin IS NULL)::bigint `+base, id).Scan(&result.TotalSiswa, &result.LakiLaki, &result.Perempuan, &result.TidakDiketahui); err != nil {
+	WHERE ar.rombongan_belajar_id = $1::uuid AND ar.soft_delete = 0
+	  AND ($2::text = '' OR btrim(rb.semester_id) = $2::text)`
+	if err := r.pool.QueryRow(ctx, `SELECT count(DISTINCT pd.peserta_didik_id)::bigint, count(DISTINCT pd.peserta_didik_id) FILTER (WHERE btrim(pd.jenis_kelamin) = 'L')::bigint, count(DISTINCT pd.peserta_didik_id) FILTER (WHERE btrim(pd.jenis_kelamin) = 'P')::bigint, count(DISTINCT pd.peserta_didik_id) FILTER (WHERE btrim(pd.jenis_kelamin) NOT IN ('L','P') OR pd.jenis_kelamin IS NULL)::bigint `+base, id, r.period.SemesterID).Scan(&result.TotalSiswa, &result.LakiLaki, &result.Perempuan, &result.TidakDiketahui); err != nil {
 		return result, fmt.Errorf("count statistik rombel: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `SELECT COALESCE(pd.agama_id::integer, 0), COALESCE(agama.nama, 'Tidak diketahui'), count(DISTINCT pd.peserta_didik_id)::bigint `+base+` GROUP BY pd.agama_id, agama.nama ORDER BY pd.agama_id NULLS LAST`, id)
+	rows, err := r.pool.Query(ctx, `SELECT COALESCE(pd.agama_id::integer, 0), COALESCE(agama.nama, 'Tidak diketahui'), count(DISTINCT pd.peserta_didik_id)::bigint `+base+` GROUP BY pd.agama_id, agama.nama ORDER BY pd.agama_id NULLS LAST`, id, r.period.SemesterID)
 	if err != nil {
 		return result, fmt.Errorf("query sebaran agama rombel: %w", err)
 	}
@@ -249,7 +270,7 @@ func (r *PostgresRepository) GetStatistics(ctx context.Context, id string) (Stat
 		return result, fmt.Errorf("iterate sebaran agama: %w", err)
 	}
 	rows.Close()
-	rows, err = r.pool.Query(ctx, `SELECT CASE WHEN pd.tanggal_lahir IS NULL THEN 'tidak_diketahui' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) < 6 THEN '<6' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) BETWEEN 6 AND 11 THEN '6-11' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) BETWEEN 12 AND 15 THEN '12-15' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) BETWEEN 16 AND 18 THEN '16-18' ELSE '>18' END, count(DISTINCT pd.peserta_didik_id)::bigint `+base+` GROUP BY 1 ORDER BY 1`, id)
+	rows, err = r.pool.Query(ctx, `SELECT CASE WHEN pd.tanggal_lahir IS NULL THEN 'tidak_diketahui' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) < 6 THEN '<6' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) BETWEEN 6 AND 11 THEN '6-11' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) BETWEEN 12 AND 15 THEN '12-15' WHEN date_part('year', age(current_date, pd.tanggal_lahir)) BETWEEN 16 AND 18 THEN '16-18' ELSE '>18' END, count(DISTINCT pd.peserta_didik_id)::bigint `+base+` GROUP BY 1 ORDER BY 1`, id, r.period.SemesterID)
 	if err != nil {
 		return result, fmt.Errorf("query sebaran usia rombel: %w", err)
 	}
@@ -266,7 +287,7 @@ func (r *PostgresRepository) GetStatistics(ctx context.Context, id string) (Stat
 		return result, fmt.Errorf("iterate sebaran usia: %w", err)
 	}
 	rows.Close()
-	if err := r.pool.QueryRow(ctx, `SELECT count(*)::bigint, count(DISTINCT mata_pelajaran_id)::bigint FROM public.pembelajaran WHERE rombongan_belajar_id = $1::uuid AND soft_delete = 0`, id).Scan(&result.JumlahPembelajaran, &result.JumlahMataPelajaran); err != nil {
+	if err := r.pool.QueryRow(ctx, `SELECT count(*)::bigint, count(DISTINCT mata_pelajaran_id)::bigint FROM public.pembelajaran WHERE rombongan_belajar_id = $1::uuid AND soft_delete = 0 AND ($2::text = '' OR btrim(semester_id) = $2::text)`, id, r.period.SemesterID).Scan(&result.JumlahPembelajaran, &result.JumlahMataPelajaran); err != nil {
 		return result, fmt.Errorf("count pembelajaran rombel: %w", err)
 	}
 	return result, nil

@@ -6,11 +6,11 @@ REST API berbasis Go untuk membaca data Dapodik melalui PostgreSQL. Endpoint API
 
 - Go 1.22 atau lebih baru untuk development/build.
 - PostgreSQL yang dapat dijangkau aplikasi.
-- File `.env` dengan `DB_DSN` dan `API_KEY`.
+- File `.env` dengan `DB_DSN`, `API_KEY`, dan `SEMESTER` (contoh `SEMESTER="2026/2027 Gasal"`).
 
 ## Menjalankan untuk development
 
-Salin `.env.example` menjadi `.env`, isi koneksi database dan API key, lalu jalankan:
+Salin `.env.example` menjadi `.env`, isi koneksi database, API key, dan semester aktif yang ingin dipakai semua endpoint, lalu jalankan:
 
 ```powershell
 go run ./cmd/api

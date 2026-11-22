@@ -45,13 +45,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if aktif := strings.TrimSpace(q.Get("aktif")); aktif != "" {
-		value, e := strconv.ParseBool(aktif)
-		if e != nil {
-			response.WriteError(w, http.StatusBadRequest, "aktif harus bernilai true atau false")
-			return
-		}
-		filters.Aktif = &value
+	if aktif := strings.TrimSpace(q.Get("aktif")); aktif != "" && aktif != "true" {
+		response.WriteError(w, http.StatusBadRequest, "daftar ini hanya menampilkan siswa yang belum keluar; parameter aktif tidak perlu diisi")
+		return
 	}
 	items, total, err := h.service.List(r.Context(), pagination.Page, pagination.Limit, filters)
 	if err != nil {

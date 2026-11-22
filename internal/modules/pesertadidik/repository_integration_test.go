@@ -32,25 +32,29 @@ func TestPostgresRepositoryIntegration(t *testing.T) {
 	defer pool.Close()
 	var studentID, schoolID, rombelID, semesterID string
 	var tingkatID int64
-	err = pool.QueryRow(ctx, `SELECT pd.peserta_didik_id::text, reg.sekolah_id::text, rb.rombongan_belajar_id::text, btrim(rb.semester_id), rb.tingkat_pendidikan_id::bigint FROM public.peserta_didik AS pd JOIN public.registrasi_peserta_didik AS reg ON reg.peserta_didik_id = pd.peserta_didik_id AND reg.soft_delete = 0 AND reg.jenis_keluar_id IS NULL JOIN public.anggota_rombel AS ar ON ar.peserta_didik_id = pd.peserta_didik_id AND ar.soft_delete = 0 JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0 WHERE pd.soft_delete = 0 ORDER BY pd.peserta_didik_id LIMIT 1`).Scan(&studentID, &schoolID, &rombelID, &semesterID, &tingkatID)
+	err = pool.QueryRow(ctx, `WITH registration AS (SELECT DISTINCT ON (r.peserta_didik_id) r.peserta_didik_id,r.sekolah_id,r.jenis_keluar_id FROM public.registrasi_peserta_didik r WHERE r.soft_delete=0 ORDER BY r.peserta_didik_id,r.last_update DESC,r.registrasi_id DESC) SELECT pd.peserta_didik_id::text,reg.sekolah_id::text,rb.rombongan_belajar_id::text,btrim(rb.semester_id),rb.tingkat_pendidikan_id::bigint FROM public.peserta_didik pd JOIN registration reg ON reg.peserta_didik_id=pd.peserta_didik_id AND reg.jenis_keluar_id IS NULL JOIN public.anggota_rombel ar ON ar.peserta_didik_id=pd.peserta_didik_id AND ar.soft_delete=0 JOIN public.rombongan_belajar rb ON rb.rombongan_belajar_id=ar.rombongan_belajar_id AND rb.soft_delete=0 AND rb.sekolah_id=reg.sekolah_id AND rb.jenis_rombel IN (1,9) WHERE pd.soft_delete=0 ORDER BY rb.semester_id DESC,ar.last_update DESC LIMIT 1`).Scan(&studentID, &schoolID, &rombelID, &semesterID, &tingkatID)
 	if err != nil {
 		t.Fatalf("find registered student: %v", err)
 	}
 	repository := NewPostgresRepository(pool)
-	aktif := true
-	items, total, err := repository.List(ctx, 1, 5, Filters{SekolahID: schoolID, RombonganBelajarID: rombelID, SemesterID: semesterID, TingkatPendidikanID: fmt.Sprint(tingkatID), Aktif: &aktif, Search: ""})
+	items, total, err := repository.List(ctx, 1, 5, Filters{SekolahID: schoolID, RombonganBelajarID: rombelID, SemesterID: semesterID, TingkatPendidikanID: fmt.Sprint(tingkatID), Search: ""})
 	if err != nil {
 		t.Fatalf("list students: %v", err)
 	}
 	if total == 0 || len(items) == 0 {
 		t.Fatal("expected registered students in selected school")
 	}
-	allItems, allTotal, err := repository.List(ctx, 1, 0, Filters{SekolahID: schoolID, RombonganBelajarID: rombelID, SemesterID: semesterID, TingkatPendidikanID: fmt.Sprint(tingkatID), Aktif: &aktif})
+	allItems, allTotal, err := repository.List(ctx, 1, 0, Filters{SekolahID: schoolID, RombonganBelajarID: rombelID, SemesterID: semesterID, TingkatPendidikanID: fmt.Sprint(tingkatID)})
 	if err != nil {
 		t.Fatalf("list all matching students without pagination: %v", err)
 	}
 	if int64(len(allItems)) != allTotal {
 		t.Fatalf("unpaginated list returned %d rows but count query reports %d", len(allItems), allTotal)
+	}
+	for _, item := range allItems {
+		if item.JenisRombel == nil || (*item.JenisRombel != 1 && *item.JenisRombel != 9) {
+			t.Fatalf("student %s belongs to unexpected rombel type: %v", item.PesertaDidikID, item.JenisRombel)
+		}
 	}
 	if _, err := repository.GetDetail(ctx, studentID); err != nil {
 		t.Fatalf("get student detail: %v", err)

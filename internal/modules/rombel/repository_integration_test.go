@@ -69,6 +69,15 @@ func TestPostgresRepositoryIntegration(t *testing.T) {
 		if _, _, err := repository.List(ctx, 1, 5, Filters{JenisRombel: fmt.Sprint(jenis)}); err != nil {
 			t.Fatalf("list rombel type %d: %v", jenis, err)
 		}
+		if jenis == 18 || jenis == 51 {
+			filtered, filteredTotal, err := repository.List(ctx, 1, 0, Filters{JenisRombel: fmt.Sprint(jenis)})
+			if err != nil {
+				t.Fatalf("list excluded rombel type %d: %v", jenis, err)
+			}
+			if filteredTotal != 0 || len(filtered) != 0 {
+				t.Fatalf("rombel type %d should be excluded, got total=%d rows=%d", jenis, filteredTotal, len(filtered))
+			}
+		}
 	}
 	if _, err := repository.GetDetail(ctx, id); err != nil {
 		t.Fatalf("get rombel detail: %v", err)

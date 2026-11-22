@@ -55,7 +55,7 @@ func TestListParsesFiltersAndProtectsSensitiveFields(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
-	if store.page != 2 || store.limit != 5 || store.filters.SekolahID == "" || store.filters.SemesterID != "20251" || store.filters.TingkatPendidikanID != "10" || store.filters.Aktif == nil || !*store.filters.Aktif || store.filters.Search != "Contoh" {
+	if store.page != 2 || store.limit != 5 || store.filters.SekolahID == "" || store.filters.SemesterID != "20251" || store.filters.TingkatPendidikanID != "10" || store.filters.Search != "Contoh" {
 		t.Fatalf("unexpected arguments: %+v", store)
 	}
 	for _, forbidden := range []string{`"nik"`, `"no_kk"`, `"nik_ayah"`, `"nik_ibu"`, `"nik_wali"`, `"rekening_bank"`, `"no_kps"`, `"no_kip"`, `"no_kks"`} {
@@ -81,7 +81,7 @@ func TestListWithoutPageOrLimitReturnsAllResults(t *testing.T) {
 }
 
 func TestListRejectsInvalidFilters(t *testing.T) {
-	for _, query := range []string{"?sekolah_id=invalid", "?rombongan_belajar_id=invalid", "?tingkat_pendidikan_id=x", "?aktif=maybe"} {
+	for _, query := range []string{"?sekolah_id=invalid", "?rombongan_belajar_id=invalid", "?tingkat_pendidikan_id=x", "?aktif=false", "?aktif=maybe"} {
 		t.Run(query, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			testServer(&fakeStore{}).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/peserta-didik"+query, nil))

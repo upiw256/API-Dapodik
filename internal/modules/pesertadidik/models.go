@@ -5,7 +5,6 @@ type Filters struct {
 	RombonganBelajarID  string
 	SemesterID          string
 	TingkatPendidikanID string
-	Aktif               *bool
 	Search              string
 }
 
@@ -16,9 +15,9 @@ type ListItem struct {
 	NISN           *string `json:"nisn,omitempty"`
 	NIPD           *string `json:"nipd,omitempty"`
 	SekolahID      string  `json:"sekolah_id"`
-	JenisKeluarID  *string `json:"jenis_keluar_id,omitempty"`
 	RombelID       *string `json:"rombongan_belajar_id,omitempty"`
 	Rombel         *string `json:"rombel,omitempty"`
+	JenisRombel    *int64  `json:"jenis_rombel,omitempty"`
 	SemesterID     *string `json:"semester_id,omitempty"`
 	TingkatID      *int64  `json:"tingkat_pendidikan_id,omitempty"`
 	Tingkat        *string `json:"tingkat_pendidikan,omitempty"`

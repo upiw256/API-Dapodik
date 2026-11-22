@@ -5,7 +5,7 @@ import "context"
 type Store interface {
 	List(context.Context, int, int, Filters) ([]ListItem, int64, error)
 	GetDetail(context.Context, string) (Detail, error)
-	ListAnggota(context.Context, string) ([]Anggota, error)
+	ListAnggota(context.Context, string) (AnggotaResponse, error)
 	ListPembelajaran(context.Context, string) ([]Pembelajaran, error)
 	GetStatistics(context.Context, string) (Statistics, error)
 }
@@ -19,7 +19,7 @@ func (s *Service) List(ctx context.Context, page, limit int, f Filters) ([]ListI
 func (s *Service) GetDetail(ctx context.Context, id string) (Detail, error) {
 	return s.store.GetDetail(ctx, id)
 }
-func (s *Service) ListAnggota(ctx context.Context, id string) ([]Anggota, error) {
+func (s *Service) ListAnggota(ctx context.Context, id string) (AnggotaResponse, error) {
 	return s.store.ListAnggota(ctx, id)
 }
 func (s *Service) ListPembelajaran(ctx context.Context, id string) ([]Pembelajaran, error) {

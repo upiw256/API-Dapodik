@@ -2,6 +2,8 @@
 
 Semua endpoint hanya menerima `GET` dan membutuhkan header `X-API-Key`. Ganti `ISI_API_KEY` dengan nilai `API_KEY` dari `.env`; jangan membagikan key tersebut.
 
+Atur `SEMESTER` di `.env`, misalnya `SEMESTER="2026/2027 Gasal"`. Saat startup aplikasi mencocokkan label tersebut dengan `ref.semester`; API gagal startup jika nilainya tidak ditemukan atau ambigu. Seluruh endpoint yang datanya terikat semester memakai semester pilihan ini, termasuk daftar/detail kelas dan siswa, longitudinal sekolah, serta pembelajaran PTK. Parameter `semester_id`/`tahun_ajaran_id` pada request tidak dapat mengganti pilihan `.env`. Endpoint yang secara alami berupa profil, referensi wilayah, atau catatan historis tanpa relasi semester tetap menampilkan datanya sesuai tabel.
+
 Untuk endpoint daftar yang menyediakan `limit`, hasil tidak dipotong jika `limit` tidak dikirim. `page` hanya diterapkan bersama `limit`. Jika `limit` diberikan tanpa `page`, halaman pertama digunakan. Nilai maksimum `limit` adalah 100.
 
 Rate limit berlaku gabungan pada semua endpoint: maksimal 5 request terautentikasi per alamat IP. Request berikutnya mendapat HTTP `429 Too Many Requests` dan header `Retry-After` dalam detik. Jika tidak ada request selama 1 menit, hitungan di-reset walaupun jendela 10 menit belum lewat. Request `OPTIONS` untuk preflight tidak dihitung. Jika API berada di belakang reverse proxy, batas ini menggunakan alamat peer yang dilihat aplikasi.
@@ -46,17 +48,17 @@ Data PTK mencakup pengecualian yang dirinci dalam implementation plan. Jangan me
 
 | Method | Endpoint | Parameter |
 | --- | --- | --- |
-| GET | `/api/peserta-didik` | `sekolah_id`, `rombongan_belajar_id`, `semester_id`, `tingkat_pendidikan_id`, `aktif`, `search`, `page`, `limit` |
+| GET | `/api/peserta-didik` | `sekolah_id`, `rombongan_belajar_id`, `semester_id`, `tingkat_pendidikan_id`, `search`, `page`, `limit` |
 | GET | `/api/peserta-didik/{peserta_didik_id}` | UUID peserta didik |
 | GET | `/api/peserta-didik/{peserta_didik_id}/rombel` | UUID peserta didik |
 | GET | `/api/peserta-didik/{peserta_didik_id}/prestasi-beasiswa` | UUID peserta didik |
 
-`aktif=true` memilih siswa dengan `jenis_keluar_id IS NULL`; `aktif=false` memilih siswa yang memiliki `jenis_keluar_id`. `search` mencari nama, NISN, atau NIPD. Kolom NIK/KK siswa dan keluarga, rekening, serta nomor bantuan tidak disertakan.
+Endpoint daftar hanya mengembalikan siswa yang registrasi terbarunya belum mencatat keluar (`jenis_keluar_id IS NULL`) dan berada pada rombel terbaru jenis `1` atau `9`. Relasi siswa-kelas menggunakan `rombongan_belajar_id` melalui `anggota_rombel`. `jenis_rombel` ikut ditampilkan, sedangkan status keluar tidak. `search` mencari nama, NISN, atau NIPD. Kolom NIK/KK siswa dan keluarga, rekening, serta nomor bantuan tidak disertakan.
 
 Contoh pemanggilan dan filter gabungan di PowerShell:
 
 ```powershell
-Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/peserta-didik?sekolah_id=UUID-SEKOLAH&aktif=true&search=Contoh&page=1&limit=10"
+Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/peserta-didik?sekolah_id=UUID-SEKOLAH&search=Contoh&page=1&limit=10"
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/peserta-didik/UUID-PESERTA-DIDIK"
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/peserta-didik/UUID-PESERTA-DIDIK/rombel"
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/peserta-didik/UUID-PESERTA-DIDIK/prestasi-beasiswa"
@@ -82,7 +84,7 @@ Respons sukses memakai envelope umum berikut. Nilai di bawah hanya contoh ilustr
 }
 ```
 
-Respons detail menyediakan biodata dan label referensi, data keluarga non-identifikator, serta tinggi/berat/jarak dari data longitudinal terbaru. Endpoint rombel mengembalikan riwayat kelas; endpoint prestasi/beasiswa mengembalikan objek dengan array `prestasi` dan `beasiswa`.
+Respons detail menyediakan biodata dan label referensi, data keluarga non-identifikator, serta tinggi/berat/jarak dari data longitudinal pada semester pilihan. Endpoint rombel peserta didik hanya mengembalikan kelas pada semester pilihan; endpoint prestasi/beasiswa mengembalikan objek dengan array `prestasi` dan `beasiswa`.
 
 ## Rombongan belajar (rombel)
 
@@ -94,7 +96,7 @@ Respons detail menyediakan biodata dan label referensi, data keluarga non-identi
 | GET | `/api/rombel/{rombongan_belajar_id}/pembelajaran` | UUID rombel |
 | GET | `/api/rombel/{rombongan_belajar_id}/statistik` | UUID rombel |
 
-Daftar rombel menyertakan jumlah siswa aktif dan label sekolah, wali kelas, ruang, semester, tingkat, kurikulum, jenis rombel, serta jurusan jika tersedia. Detail juga berisi kebutuhan khusus dan ringkasan status validasi.
+Daftar rombel menyertakan jumlah siswa aktif dan label sekolah, wali kelas, ruang, semester, tingkat, kurikulum, jenis rombel, serta jurusan jika tersedia. Jenis rombel `18` dan `51` dikecualikan dari endpoint daftar. Detail juga berisi kebutuhan khusus dan ringkasan status validasi. Endpoint `/anggota` membungkus hasil dalam objek yang memuat `nama_kelas`, `wali_kelas`, dan array `anggota`; array tetap kosong (`[]`) jika belum ada siswa.
 
 ```powershell
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/rombel?sekolah_id=UUID-SEKOLAH&semester_id=20251&page=1&limit=20"

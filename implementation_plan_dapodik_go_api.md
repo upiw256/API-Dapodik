@@ -98,7 +98,7 @@ dapodik-readonly-api/
 - [x] **4.5 Verifikasi Fase 4:** Kompilasi dan uji seluruh *endpoint* `/api/ptk/*` termasuk pencarian dan filter tahun ajaran.
 
 ### Fase 5: Modul Data Siswa / Peserta Didik (`public.peserta_didik`)
-- [x] **5.1 Daftar & Pencarian Siswa:** Implementasikan `GET /api/peserta-didik` dengan filter `?sekolah_id=`, `?rombongan_belajar_id=`, `?semester_id=`, `?tingkat_pendidikan_id=`, `?aktif=true` (`jenis_keluar_id IS NULL`), `?search=` (`nama`, `nisn`, `nipd`), dan paginasi opsional (tanpa `page`/`limit`, kembalikan semua hasil). Kolom identitas sensitif siswa dan keluarga tidak diambil.
+- [x] **5.1 Daftar & Pencarian Siswa:** Implementasikan `GET /api/peserta-didik` khusus siswa yang registrasi terbarunya belum keluar (`jenis_keluar_id IS NULL`) dan rombel terbarunya memiliki `jenis_rombel` 1 atau 9, dengan relasi `anggota_rombel.rombongan_belajar_id` ke `rombongan_belajar.rombongan_belajar_id`. Dukung filter `?sekolah_id=`, `?rombongan_belajar_id=`, `?semester_id=`, `?tingkat_pendidikan_id=`, `?search=` (`nama`, `nisn`, `nipd`), dan paginasi opsional (tanpa `page`/`limit`, kembalikan semua hasil). Status keluar tidak ditampilkan pada item daftar; kolom identitas sensitif siswa dan keluarga tidak diambil.
 - [x] **5.2 Detail Profil & Data Keluarga Siswa:** Implementasikan `GET /api/peserta-didik/{peserta_didik_id}` yang menggabungkan `public.peserta_didik`, `public.registrasi_peserta_didik`, label referensi (`ref.agama`, `ref.jenis_tinggal`, `ref.alat_transportasi`, `ref.pekerjaan`, `ref.penghasilan`), serta data tinggi/berat/jarak terbaru dari `public.peserta_didik_longitudinal`. Kolom NIK/KK, identitas NIK keluarga, rekening, dan nomor bantuan tidak diambil.
 - [x] **5.3 Riwayat Rombel & Prestasi/Beasiswa:** Implementasikan:
 - [x] `GET /api/peserta-didik/{peserta_didik_id}/rombel` (`public.anggota_rombel` JOIN `public.rombongan_belajar`, `ref.semester`, dan `public.ptk` wali kelas)
@@ -108,7 +108,7 @@ dapodik-readonly-api/
   - [x] Buat file dokumentasi `API_DOCS.md` berisi daftar lengkap *endpoint*, contoh `curl`, query parameters, dan contoh JSON response.
 ### Fase 6: Modul Data Kelas / Rombongan Belajar (`public.rombongan_belajar`)
 
-* [x] **6.1 Daftar & Pencarian Rombel:** Implementasikan `GET /api/rombel` dengan dukungan filter `?sekolah_id=`, `?semester_id=`, `?tingkat_pendidikan_id=`, `?jenis_rombel=`, `?kurikulum_id=`, `?jurusan_sp_id=`, `?ptk_id=` (wali kelas), `?search=` (`ILIKE` pada `nama`), serta paginasi opsional (tanpa `limit`, mengembalikan semua hasil). Sertakan agregasi jumlah siswa aktif dan label relasi sekolah, wali kelas, ruang, semester, tingkat, kurikulum, jenis rombel, dan jurusan.
+* [x] **6.1 Daftar & Pencarian Rombel:** Implementasikan `GET /api/rombel` dengan dukungan filter `?sekolah_id=`, `?semester_id=`, `?tingkat_pendidikan_id=`, `?jenis_rombel=`, `?kurikulum_id=`, `?jurusan_sp_id=`, `?ptk_id=` (wali kelas), `?search=` (`ILIKE` pada `nama`), serta paginasi opsional (tanpa `limit`, mengembalikan semua hasil). Jenis rombel `18` dan `51` dikecualikan. Sertakan agregasi jumlah siswa aktif dan label relasi sekolah, wali kelas, ruang, semester, tingkat, kurikulum, jenis rombel, dan jurusan.
 
 * [x] **6.2 Detail Lengkap Rombel & Ekstrakurikuler:** Implementasikan `GET /api/rombel/{rombongan_belajar_id}` yang memuat:
 

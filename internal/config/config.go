@@ -18,6 +18,7 @@ type Config struct {
 	DBMinConns       int32
 	AppPort          string
 	APIKey           string
+	Semester         string
 	HTTPReadTimeout  time.Duration
 	HTTPWriteTimeout time.Duration
 	HTTPIdleTimeout  time.Duration
@@ -32,6 +33,7 @@ func Load() (Config, error) {
 		DBDSN:            os.Getenv("DB_DSN"),
 		AppPort:          envOrDefault("APP_PORT", "8080"),
 		APIKey:           os.Getenv("API_KEY"),
+		Semester:         os.Getenv("SEMESTER"),
 		DBConnectTimeout: 5 * time.Second,
 		DBMaxConns:       10,
 		DBMinConns:       1,
@@ -65,6 +67,9 @@ func Load() (Config, error) {
 	}
 	if cfg.APIKey == "" {
 		return Config{}, errors.New("API_KEY is required")
+	}
+	if cfg.Semester == "" {
+		return Config{}, errors.New("SEMESTER is required (example: 2026/2027 Gasal)")
 	}
 	if cfg.DBConnectTimeout <= 0 || cfg.HTTPReadTimeout <= 0 || cfg.HTTPWriteTimeout <= 0 || cfg.HTTPIdleTimeout <= 0 {
 		return Config{}, errors.New("timeouts must be greater than zero")

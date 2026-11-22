@@ -16,6 +16,7 @@ import (
 	"dapodik-readonly-api/internal/modules/referensi"
 	"dapodik-readonly-api/internal/modules/rombel"
 	"dapodik-readonly-api/internal/modules/sekolah"
+	"dapodik-readonly-api/internal/period"
 	"dapodik-readonly-api/internal/response"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -39,22 +40,29 @@ func runAPI(serverCtx context.Context) error {
 		return fmt.Errorf("connect to database: %w", err)
 	}
 	defer pool.Close()
+	periodCtx, cancelPeriod := context.WithTimeout(context.Background(), cfg.DBConnectTimeout)
+	selectedPeriod, err := period.Resolve(periodCtx, pool, cfg.Semester)
+	cancelPeriod()
+	if err != nil {
+		return fmt.Errorf("resolve configured semester: %w", err)
+	}
+	log.Printf("Using semester %q (ID %s, academic year %d)", selectedPeriod.Label, selectedPeriod.SemesterID, selectedPeriod.TahunAjaranID)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", healthHandler(pool))
-	referensiRepository := referensi.NewPostgresRepository(pool)
+	referensiRepository := referensi.NewPostgresRepository(pool, selectedPeriod)
 	referensiService := referensi.NewService(referensiRepository)
 	referensi.NewHandler(referensiService).RegisterRoutes(mux)
-	sekolahRepository := sekolah.NewPostgresRepository(pool)
+	sekolahRepository := sekolah.NewPostgresRepository(pool, selectedPeriod)
 	sekolahService := sekolah.NewService(sekolahRepository)
 	sekolah.NewHandler(sekolahService).RegisterRoutes(mux)
-	ptkRepository := ptk.NewPostgresRepository(pool)
+	ptkRepository := ptk.NewPostgresRepository(pool, selectedPeriod)
 	ptkService := ptk.NewService(ptkRepository)
 	ptk.NewHandler(ptkService).RegisterRoutes(mux)
-	pdRepository := pesertadidik.NewPostgresRepository(pool)
+	pdRepository := pesertadidik.NewPostgresRepository(pool, selectedPeriod)
 	pdService := pesertadidik.NewService(pdRepository)
 	pesertadidik.NewHandler(pdService).RegisterRoutes(mux)
-	rombelRepository := rombel.NewPostgresRepository(pool)
+	rombelRepository := rombel.NewPostgresRepository(pool, selectedPeriod)
 	rombelService := rombel.NewService(rombelRepository)
 	rombel.NewHandler(rombelService).RegisterRoutes(mux)
 

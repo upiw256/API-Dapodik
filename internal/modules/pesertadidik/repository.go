@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"dapodik-readonly-api/internal/period"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,10 +19,17 @@ type Store interface {
 	GetPrestasiBeasiswa(context.Context, string) (PrestasiBeasiswa, error)
 }
 
-type PostgresRepository struct{ pool *pgxpool.Pool }
+type PostgresRepository struct {
+	pool   *pgxpool.Pool
+	period period.Selection
+}
 
-func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+func NewPostgresRepository(pool *pgxpool.Pool, selected ...period.Selection) *PostgresRepository {
+	r := &PostgresRepository{pool: pool}
+	if len(selected) > 0 {
+		r.period = selected[0]
+	}
+	return r
 }
 
 const currentRegistration = `WITH registration AS (
@@ -34,50 +42,43 @@ const currentRegistration = `WITH registration AS (
 	ORDER BY r.peserta_didik_id, r.last_update DESC, r.registrasi_id DESC
 ), current_class AS (
 	SELECT DISTINCT ON (ar.peserta_didik_id)
-	       ar.peserta_didik_id, ar.rombongan_belajar_id, rb.nama, rb.semester_id,
-	       rb.tingkat_pendidikan_id
+	       ar.peserta_didik_id, ar.rombongan_belajar_id, rb.nama, rb.jenis_rombel::bigint,
+	       rb.sekolah_id, rb.semester_id, rb.tingkat_pendidikan_id
 	FROM public.anggota_rombel AS ar
 	JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
-	WHERE ar.soft_delete = 0
+	WHERE ar.soft_delete = 0 AND rb.jenis_rombel IN (1, 9)
+	  AND ($6::text = '' OR btrim(rb.semester_id) = $6::text)
 	ORDER BY ar.peserta_didik_id, rb.semester_id DESC, ar.last_update DESC, ar.anggota_rombel_id DESC
 )`
 
 const studentListFrom = `
 FROM public.peserta_didik AS pd
 JOIN registration AS reg ON reg.peserta_didik_id = pd.peserta_didik_id
-LEFT JOIN current_class AS kelas ON kelas.peserta_didik_id = pd.peserta_didik_id
+JOIN current_class AS kelas ON kelas.peserta_didik_id = pd.peserta_didik_id AND kelas.sekolah_id = reg.sekolah_id
 
 LEFT JOIN ref.tingkat_pendidikan AS tingkat ON tingkat.tingkat_pendidikan_id = kelas.tingkat_pendidikan_id AND tingkat.expired_date IS NULL
 WHERE pd.soft_delete = 0
 	AND ($1::uuid IS NULL OR reg.sekolah_id = $1::uuid)
-	AND ($2::uuid IS NULL OR EXISTS (
-		SELECT 1 FROM public.anggota_rombel AS ar
-		JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
-		WHERE ar.peserta_didik_id = pd.peserta_didik_id AND ar.rombongan_belajar_id = $2::uuid AND ar.soft_delete = 0
-	))
-	AND ($3::text = '' OR EXISTS (
-		SELECT 1 FROM public.anggota_rombel AS ar
-		JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
-		WHERE ar.peserta_didik_id = pd.peserta_didik_id AND btrim(rb.semester_id) = $3::text AND ar.soft_delete = 0
-	))
-	AND ($4::bigint IS NULL OR EXISTS (
-		SELECT 1 FROM public.anggota_rombel AS ar
-		JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
-		WHERE ar.peserta_didik_id = pd.peserta_didik_id AND rb.tingkat_pendidikan_id = $4::bigint AND ar.soft_delete = 0
-	))
-	AND ($5::boolean IS NULL OR (($5::boolean AND reg.jenis_keluar_id IS NULL) OR (NOT $5::boolean AND reg.jenis_keluar_id IS NOT NULL)))
-	AND ($6::text = '' OR pd.nama ILIKE '%' || $6::text || '%' OR btrim(pd.nisn) ILIKE '%' || $6::text || '%' OR reg.nipd ILIKE '%' || $6::text || '%')`
+	AND ($2::uuid IS NULL OR kelas.rombongan_belajar_id = $2::uuid)
+	AND ($3::text = '' OR btrim(kelas.semester_id) = $3::text)
+	AND ($4::bigint IS NULL OR kelas.tingkat_pendidikan_id = $4::bigint)
+	AND reg.jenis_keluar_id IS NULL
+	AND ($5::text = '' OR pd.nama ILIKE '%' || $5::text || '%' OR btrim(pd.nisn) ILIKE '%' || $5::text || '%' OR reg.nipd ILIKE '%' || $5::text || '%')`
 
 func (r *PostgresRepository) List(ctx context.Context, page, limit int, f Filters) ([]ListItem, int64, error) {
+	if r.period.SemesterID != "" {
+		f.SemesterID = r.period.SemesterID
+	}
 	args := filterArgs(f)
+	args = append(args, r.period.SemesterID)
 	var total int64
 	if err := r.pool.QueryRow(ctx, currentRegistration+` SELECT count(DISTINCT pd.peserta_didik_id) `+studentListFrom, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count peserta didik: %w", err)
 	}
 	query := currentRegistration + `
 	SELECT pd.peserta_didik_id::text, pd.nama, btrim(pd.jenis_kelamin), NULLIF(btrim(pd.nisn), ''),
-	       NULLIF(reg.nipd, ''), reg.sekolah_id::text, reg.jenis_keluar_id,
-	       kelas.rombongan_belajar_id::text, kelas.nama, NULLIF(btrim(kelas.semester_id), ''),
+	       NULLIF(reg.nipd, ''), reg.sekolah_id::text,
+	       kelas.rombongan_belajar_id::text, kelas.nama, kelas.jenis_rombel, NULLIF(btrim(kelas.semester_id), ''),
 	       kelas.tingkat_pendidikan_id::bigint, tingkat.nama ` + studentListFrom + `
 	ORDER BY pd.nama, pd.peserta_didik_id`
 	if limit > 0 {
@@ -92,7 +93,7 @@ func (r *PostgresRepository) List(ctx context.Context, page, limit int, f Filter
 	items := make([]ListItem, 0)
 	for rows.Next() {
 		var item ListItem
-		if err := rows.Scan(&item.PesertaDidikID, &item.Nama, &item.JenisKelamin, &item.NISN, &item.NIPD, &item.SekolahID, &item.JenisKeluarID, &item.RombelID, &item.Rombel, &item.SemesterID, &item.TingkatID, &item.Tingkat); err != nil {
+		if err := rows.Scan(&item.PesertaDidikID, &item.Nama, &item.JenisKelamin, &item.NISN, &item.NIPD, &item.SekolahID, &item.RombelID, &item.Rombel, &item.JenisRombel, &item.SemesterID, &item.TingkatID, &item.Tingkat); err != nil {
 			return nil, 0, fmt.Errorf("scan peserta didik: %w", err)
 		}
 		items = append(items, item)
@@ -104,11 +105,7 @@ func (r *PostgresRepository) List(ctx context.Context, page, limit int, f Filter
 }
 
 func filterArgs(f Filters) []any {
-	var aktif any
-	if f.Aktif != nil {
-		aktif = *f.Aktif
-	}
-	return []any{nullable(f.SekolahID), nullable(f.RombonganBelajarID), f.SemesterID, nullable(f.TingkatPendidikanID), aktif, f.Search}
+	return []any{nullable(f.SekolahID), nullable(f.RombonganBelajarID), f.SemesterID, nullable(f.TingkatPendidikanID), f.Search}
 }
 
 func nullable(value string) any {
@@ -164,11 +161,18 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 		       l.jarak_rumah_ke_sekolah_km, l.semester_id
 		FROM public.peserta_didik_longitudinal AS l
 		WHERE l.soft_delete = 0
+		  AND ($2::text = '' OR btrim(l.semester_id) = $2::text)
 		ORDER BY l.peserta_didik_id, l.semester_id DESC
 	) AS longitudinal ON longitudinal.peserta_didik_id = pd.peserta_didik_id
-	WHERE pd.peserta_didik_id = $1::uuid AND pd.soft_delete = 0`
+	WHERE pd.peserta_didik_id = $1::uuid AND pd.soft_delete = 0
+	  AND ($2::text = '' OR EXISTS (
+	    SELECT 1 FROM public.anggota_rombel AS ar
+	    JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id
+	    WHERE ar.peserta_didik_id = pd.peserta_didik_id AND ar.soft_delete = 0 AND rb.soft_delete = 0
+	      AND rb.jenis_rombel IN (1, 9) AND btrim(rb.semester_id) = $2::text
+	  ))`
 	var item Detail
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := r.pool.QueryRow(ctx, query, id, r.period.SemesterID).Scan(
 		&item.PesertaDidikID, &item.Nama, &item.JenisKelamin, &item.NISN, &item.TempatLahir, &item.TanggalLahir, &item.AgamaID, &item.Agama,
 		&item.AlamatJalan, &item.RT, &item.RW, &item.NamaDusun, &item.DesaKelurahan, &item.KodeWilayah, &item.KodePos, &item.JenisTinggalID, &item.JenisTinggal,
 		&item.AlatTransportasiID, &item.AlatTransportasi, &item.NomorTeleponSeluler, &item.Email, &item.AnakKeberapa, &item.PekerjaanID, &item.Pekerjaan,
@@ -198,8 +202,10 @@ func (r *PostgresRepository) ListRombel(ctx context.Context, id string) ([]Rombe
 	LEFT JOIN public.ptk AS ptk ON ptk.ptk_id = rb.ptk_id AND ptk.soft_delete = 0
 	LEFT JOIN ref.jenis_pendaftaran AS pendaftaran ON pendaftaran.jenis_pendaftaran_id = ar.jenis_pendaftaran_id AND pendaftaran.expired_date IS NULL
 	WHERE ar.peserta_didik_id = $1::uuid AND ar.soft_delete = 0
+	  AND ($2::text = '' OR btrim(rb.semester_id) = $2::text)
+	  AND rb.jenis_rombel IN (1, 9)
 	ORDER BY rb.semester_id DESC, rb.nama`
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := r.pool.Query(ctx, query, id, r.period.SemesterID)
 	if err != nil {
 		return nil, fmt.Errorf("query riwayat rombel peserta didik: %w", err)
 	}
