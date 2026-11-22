@@ -47,6 +47,6 @@ Build binary di Windows:
 go build -o dapodik-api.exe ./cmd/api
 ```
 
-Salin `dapodik-api.exe`, `.env`, dan `install-service.ps1` ke folder yang sama di server Windows. Jalankan `install-service.ps1` dari PowerShell Administrator untuk memasang service otomatis. Lihat bagian Windows Service di [API_DOCS.md](API_DOCS.md).
+Salin `dapodik-api.exe`, `.env`, dan `install-service.ps1` ke folder yang sama di server Windows. Jalankan `install-service.ps1` dari PowerShell Administrator untuk mendaftarkan Scheduled Task yang berjalan saat boot sebagai `SYSTEM`, tanpa perlu login. Lihat [API_DOCS.md](API_DOCS.md) untuk cara memeriksa dan menghentikan task.
 
 Jangan commit `.env` atau binary hasil build. Gunakan `.env.example` sebagai template konfigurasi tanpa rahasia.

@@ -261,7 +261,7 @@ Respons gagal memakai bentuk umum berikut; pesan menyesuaikan endpoint. UUID ata
 {"success":false,"message":"peserta didik tidak ditemukan"}
 ```
 
-## Menjalankan sebagai Windows Service
+## Menjalankan saat boot tanpa login
 
 Build binary Windows dari komputer pengembangan, lalu salin `dapodik-api.exe`, `.env`, dan `install-service.ps1` ke folder yang sama di server. Buka PowerShell **Run as administrator**, pindah ke folder tersebut, lalu jalankan:
 
@@ -269,15 +269,30 @@ Build binary Windows dari komputer pengembangan, lalu salin `dapodik-api.exe`, `
 .\install-service.ps1
 ```
 
-Script mendaftarkan service bernama `DapodikAPI` dengan startup otomatis, mengaktifkannya, dan mengatur Windows untuk mencoba restart service jika proses berhenti. Binary membaca `.env` di foldernya, meskipun working directory service adalah `C:\Windows\System32`. Log service ditulis ke `dapodik-api.log` di folder binary.
+Script mendaftarkan Scheduled Task `DapodikAPI` dengan trigger saat startup. Task berjalan sebagai akun `NT AUTHORITY\SYSTEM`, jadi tidak menunggu pengguna login. Working directory task adalah folder binary; aplikasi membaca `.env` dari folder tersebut. Jika task sudah ada, script menggantinya, lalu langsung menjalankan task. Windows akan mencoba memulai ulang proses hingga tiga kali dengan jeda satu menit jika proses berhenti.
+
+Jika server sebelumnya menjalankan Windows Service lama bernama `DapodikAPI`, hentikan dan nonaktifkan service lama sebelum menjalankan Scheduled Task agar dua proses tidak berebut port `8080`:
 
 ```powershell
-Get-Service DapodikAPI
-Restart-Service DapodikAPI
-Get-Content .\dapodik-api.log -Tail 50
+Stop-Service DapodikAPI
+Set-Service DapodikAPI -StartupType Disabled
 ```
 
-Untuk melepas service (binary dan `.env` tetap ada), jalankan PowerShell Administrator:
+Periksa task dan hasil eksekusi terakhir:
+
+```powershell
+Get-ScheduledTask -TaskName DapodikAPI | Select-Object TaskName, State
+Get-ScheduledTaskInfo -TaskName DapodikAPI | Select-Object LastRunTime, LastTaskResult, NextRunTime
+```
+
+Untuk memulai ulang task secara manual:
+
+```powershell
+Stop-ScheduledTask -TaskName DapodikAPI
+Start-ScheduledTask -TaskName DapodikAPI
+```
+
+Untuk melepas task (binary dan `.env` tetap ada), jalankan PowerShell Administrator:
 
 ```powershell
 .\uninstall-service.ps1
