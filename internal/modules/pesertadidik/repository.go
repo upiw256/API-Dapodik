@@ -24,8 +24,7 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
 }
 
-const currentRegistration = `
-WITH registration AS (
+const currentRegistration = `WITH registration AS (
 	SELECT DISTINCT ON (r.peserta_didik_id)
 	       r.peserta_didik_id, r.registrasi_id, r.sekolah_id, r.nipd,
 	       r.tanggal_masuk_sekolah, r.jenis_pendaftaran_id, r.jenis_keluar_id,
@@ -33,19 +32,21 @@ WITH registration AS (
 	FROM public.registrasi_peserta_didik AS r
 	WHERE r.soft_delete = 0
 	ORDER BY r.peserta_didik_id, r.last_update DESC, r.registrasi_id DESC
+), current_class AS (
+	SELECT DISTINCT ON (ar.peserta_didik_id)
+	       ar.peserta_didik_id, ar.rombongan_belajar_id, rb.nama, rb.semester_id,
+	       rb.tingkat_pendidikan_id
+	FROM public.anggota_rombel AS ar
+	JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
+	WHERE ar.soft_delete = 0
+	ORDER BY ar.peserta_didik_id, rb.semester_id DESC, ar.last_update DESC, ar.anggota_rombel_id DESC
 )`
 
 const studentListFrom = `
 FROM public.peserta_didik AS pd
 JOIN registration AS reg ON reg.peserta_didik_id = pd.peserta_didik_id
-LEFT JOIN LATERAL (
-	SELECT ar.rombongan_belajar_id, rb.nama, rb.semester_id, rb.tingkat_pendidikan_id
-	FROM public.anggota_rombel AS ar
-	JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
-	WHERE ar.peserta_didik_id = pd.peserta_didik_id AND ar.soft_delete = 0
-	ORDER BY rb.semester_id DESC, ar.last_update DESC
-	LIMIT 1
-) AS kelas ON TRUE
+LEFT JOIN current_class AS kelas ON kelas.peserta_didik_id = pd.peserta_didik_id
+
 LEFT JOIN ref.tingkat_pendidikan AS tingkat ON tingkat.tingkat_pendidikan_id = kelas.tingkat_pendidikan_id AND tingkat.expired_date IS NULL
 WHERE pd.soft_delete = 0
 	AND ($1::uuid IS NULL OR reg.sekolah_id = $1::uuid)
@@ -140,7 +141,15 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 	LEFT JOIN ref.jenis_tinggal AS jt ON jt.jenis_tinggal_id = pd.jenis_tinggal_id AND jt.expired_date IS NULL
 	LEFT JOIN ref.alat_transportasi AS transportasi ON transportasi.alat_transportasi_id = pd.alat_transportasi_id AND transportasi.expired_date IS NULL
 	LEFT JOIN ref.pekerjaan AS pekerjaan ON pekerjaan.pekerjaan_id = pd.pekerjaan_id AND pekerjaan.expired_date IS NULL
-	LEFT JOIN LATERAL (SELECT r.peserta_didik_id, r.registrasi_id, r.sekolah_id, r.nipd, r.tanggal_masuk_sekolah, r.jenis_pendaftaran_id, r.jenis_keluar_id, r.sekolah_asal, r.last_update FROM public.registrasi_peserta_didik AS r WHERE r.peserta_didik_id = pd.peserta_didik_id AND r.soft_delete = 0 ORDER BY r.last_update DESC, r.registrasi_id DESC LIMIT 1) AS reg ON TRUE
+	LEFT JOIN (
+		SELECT DISTINCT ON (r.peserta_didik_id)
+		       r.peserta_didik_id, r.registrasi_id, r.sekolah_id, r.nipd,
+		       r.tanggal_masuk_sekolah, r.jenis_pendaftaran_id, r.jenis_keluar_id,
+		       r.sekolah_asal, r.last_update
+		FROM public.registrasi_peserta_didik AS r
+		WHERE r.soft_delete = 0
+		ORDER BY r.peserta_didik_id, r.last_update DESC, r.registrasi_id DESC
+	) AS reg ON reg.peserta_didik_id = pd.peserta_didik_id
 	LEFT JOIN ref.jenis_pendaftaran AS pendaftaran ON pendaftaran.jenis_pendaftaran_id = reg.jenis_pendaftaran_id AND pendaftaran.expired_date IS NULL
 	LEFT JOIN ref.jenis_keluar AS keluar ON keluar.jenis_keluar_id = reg.jenis_keluar_id AND keluar.expired_date IS NULL
 	LEFT JOIN ref.pekerjaan AS pa ON pa.pekerjaan_id = pd.pekerjaan_id_ayah AND pa.expired_date IS NULL
@@ -149,7 +158,14 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 	LEFT JOIN ref.penghasilan AS pgi ON pgi.penghasilan_id = pd.penghasilan_id_ibu AND pgi.expired_date IS NULL
 	LEFT JOIN ref.pekerjaan AS pw ON pw.pekerjaan_id = pd.pekerjaan_id_wali AND pw.expired_date IS NULL
 	LEFT JOIN ref.penghasilan AS pgw ON pgw.penghasilan_id = pd.penghasilan_id_wali AND pgw.expired_date IS NULL
-	LEFT JOIN LATERAL (SELECT l.tinggi_badan, l.berat_badan, l.jarak_rumah_ke_sekolah_km, l.semester_id FROM public.peserta_didik_longitudinal AS l WHERE l.peserta_didik_id = pd.peserta_didik_id AND l.soft_delete = 0 ORDER BY l.semester_id DESC LIMIT 1) AS longitudinal ON TRUE
+	LEFT JOIN (
+		SELECT DISTINCT ON (l.peserta_didik_id)
+		       l.peserta_didik_id, l.tinggi_badan, l.berat_badan,
+		       l.jarak_rumah_ke_sekolah_km, l.semester_id
+		FROM public.peserta_didik_longitudinal AS l
+		WHERE l.soft_delete = 0
+		ORDER BY l.peserta_didik_id, l.semester_id DESC
+	) AS longitudinal ON longitudinal.peserta_didik_id = pd.peserta_didik_id
 	WHERE pd.peserta_didik_id = $1::uuid AND pd.soft_delete = 0`
 	var item Detail
 	err := r.pool.QueryRow(ctx, query, id).Scan(

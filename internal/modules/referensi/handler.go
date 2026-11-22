@@ -24,7 +24,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 func (h *Handler) listSemesters(w http.ResponseWriter, r *http.Request) {
 	items, err := h.service.ListSemesters(r.Context())
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil data semester")
+		response.WriteInternalError(w, r, "gagal mengambil data semester", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "data semester berhasil diambil", items, nil)
@@ -33,7 +33,7 @@ func (h *Handler) listSemesters(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) listTahunAjaran(w http.ResponseWriter, r *http.Request) {
 	items, err := h.service.ListTahunAjaran(r.Context())
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil data tahun ajaran")
+		response.WriteInternalError(w, r, "gagal mengambil data tahun ajaran", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "data tahun ajaran berhasil diambil", items, nil)
@@ -47,7 +47,7 @@ func (h *Handler) getWilayahHierarchy(w http.ResponseWriter, r *http.Request) {
 			response.WriteError(w, http.StatusNotFound, "kode wilayah tidak ditemukan")
 			return
 		}
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil hierarki wilayah")
+		response.WriteInternalError(w, r, "gagal mengambil hierarki wilayah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "hierarki wilayah berhasil diambil", item, nil)

@@ -195,17 +195,14 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 	LEFT JOIN ref.mst_wilayah AS wilayah
 	  ON wilayah.kode_wilayah = p.kode_wilayah
 	 AND wilayah.expired_date IS NULL
-	LEFT JOIN LATERAL (
-		SELECT pt.sekolah_id,
-		       pt.tahun_ajaran_id,
-		       pt.jenis_ptk_id,
-		       pt.jabatan_ptk_id
+	LEFT JOIN (
+		SELECT DISTINCT ON (pt.ptk_id)
+		       pt.ptk_id, pt.sekolah_id, pt.tahun_ajaran_id,
+		       pt.jenis_ptk_id, pt.jabatan_ptk_id
 		FROM public.ptk_terdaftar AS pt
-		WHERE pt.ptk_id = p.ptk_id
-		  AND pt.soft_delete = 0
-		ORDER BY pt.tahun_ajaran_id DESC, pt.last_update DESC
-		LIMIT 1
-	) AS registration ON TRUE
+		WHERE pt.soft_delete = 0
+		ORDER BY pt.ptk_id, pt.tahun_ajaran_id DESC, pt.last_update DESC
+	) AS registration ON registration.ptk_id = p.ptk_id
 	LEFT JOIN ref.jenis_ptk AS jenis
 	  ON jenis.jenis_ptk_id = registration.jenis_ptk_id
 	 AND jenis.expired_date IS NULL

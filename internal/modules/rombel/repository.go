@@ -121,7 +121,13 @@ func (r *PostgresRepository) GetDetail(ctx context.Context, id string) (Detail, 
 	LEFT JOIN public.jurusan_sp AS jurusan_sp ON jurusan_sp.jurusan_sp_id = rb.jurusan_sp_id AND jurusan_sp.soft_delete = 0
 	LEFT JOIN ref.jurusan AS jurusan ON jurusan.jurusan_id = jurusan_sp.jurusan_id AND jurusan.expired_date IS NULL
 	LEFT JOIN student_counts AS sc ON sc.rombongan_belajar_id = rb.rombongan_belajar_id
-	LEFT JOIN LATERAL (SELECT max(v.status_validasi)::bigint AS status_validasi, count(*)::bigint AS jumlah FROM public.vld_rombel AS v WHERE v.rombongan_belajar_id = rb.rombongan_belajar_id AND v.soft_delete = 0) AS validasi ON TRUE
+	LEFT JOIN (
+		SELECT v.rombongan_belajar_id, max(v.status_validasi)::bigint AS status_validasi,
+		       count(*)::bigint AS jumlah
+		FROM public.vld_rombel AS v
+		WHERE v.soft_delete = 0
+		GROUP BY v.rombongan_belajar_id
+	) AS validasi ON validasi.rombongan_belajar_id = rb.rombongan_belajar_id
 	WHERE rb.rombongan_belajar_id = $1::uuid AND rb.soft_delete = 0`
 	var item Detail
 	err := r.pool.QueryRow(ctx, activeStudentCounts+query, id).Scan(&item.ID, &item.Nama, &item.SemesterID, &item.Semester, &item.SekolahID, &item.Sekolah, &item.TingkatPendidikanID, &item.TingkatPendidikan, &item.KurikulumID, &item.Kurikulum, &item.JenisRombel, &item.JenisRombelNama, &item.MovingClass, &item.SKS, &item.TanggalMulai, &item.TanggalSelesai, &item.KebutuhanKhususID, &item.KebutuhanKhusus, &item.PTKID, &item.WaliKelas, &item.RuangID, &item.Ruang, &item.JenisPrasarana, &item.BangunanID, &item.Bangunan, &item.JurusanSPID, &item.JurusanSP, &item.Jurusan, &item.JumlahSiswa, &item.StatusValidasi, &item.JumlahValidasi, &item.EkstrakurikulerTersedia)
@@ -139,17 +145,30 @@ func (r *PostgresRepository) ListAnggota(ctx context.Context, id string) ([]Angg
 	SELECT ar.anggota_rombel_id::text, pd.peserta_didik_id::text, pd.nama, btrim(pd.jenis_kelamin), NULLIF(btrim(pd.nisn), ''),
 	       reg.nipd, to_char(reg.tanggal_masuk_sekolah, 'YYYY-MM-DD'), ar.jenis_pendaftaran_id::bigint, pda.nama,
 	       awal.jenis_pendaftaran_id::bigint, awal_ref.nama, pd.agama_id::integer, agama.nama,
-	       current_reg.jenis_keluar_id, keluar.ket_keluar
+	       reg.jenis_keluar_id, keluar.ket_keluar
 	FROM public.anggota_rombel AS ar
 	JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = ar.rombongan_belajar_id AND rb.soft_delete = 0
 	JOIN public.peserta_didik AS pd ON pd.peserta_didik_id = ar.peserta_didik_id AND pd.soft_delete = 0
-	LEFT JOIN LATERAL (SELECT r.nipd, r.tanggal_masuk_sekolah FROM public.registrasi_peserta_didik AS r WHERE r.peserta_didik_id = pd.peserta_didik_id AND r.sekolah_id = rb.sekolah_id AND r.soft_delete = 0 ORDER BY r.last_update DESC, r.registrasi_id DESC LIMIT 1) AS reg ON TRUE
-	LEFT JOIN LATERAL (SELECT r.jenis_pendaftaran_id FROM public.registrasi_peserta_didik AS r WHERE r.peserta_didik_id = pd.peserta_didik_id AND r.soft_delete = 0 ORDER BY r.tanggal_masuk_sekolah ASC NULLS LAST, r.create_date ASC LIMIT 1) AS awal ON TRUE
-	LEFT JOIN LATERAL (SELECT r.jenis_keluar_id FROM public.registrasi_peserta_didik AS r WHERE r.peserta_didik_id = pd.peserta_didik_id AND r.sekolah_id = rb.sekolah_id AND r.soft_delete = 0 ORDER BY r.last_update DESC, r.registrasi_id DESC LIMIT 1) AS current_reg ON TRUE
+	LEFT JOIN (
+		SELECT DISTINCT ON (r.peserta_didik_id, r.sekolah_id)
+		       r.peserta_didik_id, r.sekolah_id, r.nipd, r.tanggal_masuk_sekolah,
+		       r.jenis_keluar_id
+		FROM public.registrasi_peserta_didik AS r
+		WHERE r.soft_delete = 0
+		ORDER BY r.peserta_didik_id, r.sekolah_id, r.last_update DESC, r.registrasi_id DESC
+	) AS reg ON reg.peserta_didik_id = pd.peserta_didik_id AND reg.sekolah_id = rb.sekolah_id
+	LEFT JOIN (
+		SELECT DISTINCT ON (r.peserta_didik_id)
+		       r.peserta_didik_id, r.jenis_pendaftaran_id
+		FROM public.registrasi_peserta_didik AS r
+		WHERE r.soft_delete = 0
+		ORDER BY r.peserta_didik_id, r.tanggal_masuk_sekolah ASC NULLS LAST, r.create_date ASC
+	) AS awal ON awal.peserta_didik_id = pd.peserta_didik_id
+
 	LEFT JOIN ref.jenis_pendaftaran AS pda ON pda.jenis_pendaftaran_id = ar.jenis_pendaftaran_id AND pda.expired_date IS NULL
 	LEFT JOIN ref.jenis_pendaftaran AS awal_ref ON awal_ref.jenis_pendaftaran_id = awal.jenis_pendaftaran_id AND awal_ref.expired_date IS NULL
 	LEFT JOIN ref.agama AS agama ON agama.agama_id = pd.agama_id AND agama.expired_date IS NULL
-	LEFT JOIN ref.jenis_keluar AS keluar ON keluar.jenis_keluar_id = current_reg.jenis_keluar_id AND keluar.expired_date IS NULL
+	LEFT JOIN ref.jenis_keluar AS keluar ON keluar.jenis_keluar_id = reg.jenis_keluar_id AND keluar.expired_date IS NULL
 	WHERE ar.rombongan_belajar_id = $1::uuid AND ar.soft_delete = 0
 	ORDER BY pd.nama ASC, pd.peserta_didik_id`
 	rows, err := r.pool.Query(ctx, query, id)

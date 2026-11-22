@@ -3,7 +3,6 @@ package rombel
 import (
 	"encoding/hex"
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -49,8 +48,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	items, total, err := h.service.List(r.Context(), p.Page, p.Limit, f)
 	if err != nil {
-		log.Printf("list rombel failed: %v", err)
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil daftar rombel")
+		response.WriteInternalError(w, r, "gagal mengambil daftar rombel", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "daftar rombel berhasil diambil", items, utils.PaginationMeta(total, p))
@@ -67,7 +65,7 @@ func (h *Handler) getDetail(w http.ResponseWriter, r *http.Request) {
 			response.WriteError(w, http.StatusNotFound, "rombel tidak ditemukan")
 			return
 		}
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil detail rombel")
+		response.WriteInternalError(w, r, "gagal mengambil detail rombel", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "detail rombel berhasil diambil", item, nil)
@@ -79,7 +77,7 @@ func (h *Handler) listAnggota(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListAnggota(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil anggota rombel")
+		response.WriteInternalError(w, r, "gagal mengambil anggota rombel", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "anggota rombel berhasil diambil", items, nil)
@@ -91,7 +89,7 @@ func (h *Handler) listPembelajaran(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListPembelajaran(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil pembelajaran rombel")
+		response.WriteInternalError(w, r, "gagal mengambil pembelajaran rombel", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "pembelajaran rombel berhasil diambil", items, nil)
@@ -103,7 +101,7 @@ func (h *Handler) getStatistics(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.service.GetStatistics(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil statistik rombel")
+		response.WriteInternalError(w, r, "gagal mengambil statistik rombel", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "statistik rombel berhasil diambil", item, nil)

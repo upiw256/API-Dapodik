@@ -55,7 +55,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	items, total, err := h.service.List(r.Context(), pagination.Page, pagination.Limit, filters)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil daftar peserta didik")
+		response.WriteInternalError(w, r, "gagal mengambil daftar peserta didik", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "daftar peserta didik berhasil diambil", items, utils.PaginationMeta(total, pagination))
@@ -72,7 +72,7 @@ func (h *Handler) getDetail(w http.ResponseWriter, r *http.Request) {
 			response.WriteError(w, http.StatusNotFound, "peserta didik tidak ditemukan")
 			return
 		}
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil detail peserta didik")
+		response.WriteInternalError(w, r, "gagal mengambil detail peserta didik", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "detail peserta didik berhasil diambil", item, nil)
@@ -85,7 +85,7 @@ func (h *Handler) listRombel(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListRombel(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil riwayat rombel peserta didik")
+		response.WriteInternalError(w, r, "gagal mengambil riwayat rombel peserta didik", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "riwayat rombel peserta didik berhasil diambil", items, nil)
@@ -98,7 +98,7 @@ func (h *Handler) getPrestasiBeasiswa(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.service.GetPrestasiBeasiswa(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil prestasi dan beasiswa peserta didik")
+		response.WriteInternalError(w, r, "gagal mengambil prestasi dan beasiswa peserta didik", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "prestasi dan beasiswa peserta didik berhasil diambil", item, nil)

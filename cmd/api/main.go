@@ -62,6 +62,7 @@ func runAPI(serverCtx context.Context) error {
 	handler = middleware.RateLimit(5, 10*time.Minute)(handler)
 	handler = middleware.APIKey(cfg.APIKey)(handler)
 	handler = middleware.ReadOnly(handler)
+	handler = middleware.RequestLog(handler)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.AppPort,
@@ -101,7 +102,7 @@ func healthHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 		if err := pool.Ping(ctx); err != nil {
-			response.WriteError(w, http.StatusServiceUnavailable, "database unavailable")
+			response.WriteInternalErrorStatus(w, r, http.StatusServiceUnavailable, "database unavailable", err)
 			return
 		}
 		response.WriteSuccess(w, http.StatusOK, "healthy", map[string]string{"database": "connected"}, nil)

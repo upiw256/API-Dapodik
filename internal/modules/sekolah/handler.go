@@ -36,7 +36,7 @@ func (h *Handler) listSchools(w http.ResponseWriter, r *http.Request) {
 	npsn := strings.TrimSpace(r.URL.Query().Get("npsn"))
 	items, total, err := h.service.ListSchools(r.Context(), pagination.Page, pagination.Limit, npsn)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil daftar sekolah")
+		response.WriteInternalError(w, r, "gagal mengambil daftar sekolah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "daftar sekolah berhasil diambil", items, utils.PaginationMeta(total, pagination))
@@ -54,7 +54,7 @@ func (h *Handler) getSchool(w http.ResponseWriter, r *http.Request) {
 			response.WriteError(w, http.StatusNotFound, "sekolah tidak ditemukan")
 			return
 		}
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil detail sekolah")
+		response.WriteInternalError(w, r, "gagal mengambil detail sekolah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "detail sekolah berhasil diambil", item, nil)
@@ -68,7 +68,7 @@ func (h *Handler) getLongitudinal(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.GetLongitudinal(r.Context(), id, r.URL.Query().Get("semester_id"))
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil data longitudinal sekolah")
+		response.WriteInternalError(w, r, "gagal mengambil data longitudinal sekolah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "data longitudinal sekolah berhasil diambil", items, nil)
@@ -82,7 +82,7 @@ func (h *Handler) listJurusan(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListJurusan(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil jurusan sekolah")
+		response.WriteInternalError(w, r, "gagal mengambil jurusan sekolah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "jurusan sekolah berhasil diambil", items, nil)
@@ -96,7 +96,7 @@ func (h *Handler) listRombel(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListRombel(r.Context(), id, r.URL.Query().Get("semester_id"))
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil rombongan belajar sekolah")
+		response.WriteInternalError(w, r, "gagal mengambil rombongan belajar sekolah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "rombongan belajar sekolah berhasil diambil", items, nil)
@@ -110,7 +110,7 @@ func (h *Handler) listRooms(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListRooms(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil ruang sekolah")
+		response.WriteInternalError(w, r, "gagal mengambil ruang sekolah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "ruang sekolah berhasil diambil", items, nil)

@@ -69,21 +69,19 @@ const profileSelect = `
 	LEFT JOIN ref.mst_wilayah AS mw
 	  ON mw.kode_wilayah = s.kode_wilayah
 	 AND mw.expired_date IS NULL
-	LEFT JOIN LATERAL (
-		SELECT a.akreditasi_id::bigint,
-		       ar.nama AS nama_akreditasi,
-		       a.akred_sp_sk AS sk,
+	LEFT JOIN (
+		SELECT DISTINCT ON (a.sekolah_id)
+		       a.sekolah_id, a.akreditasi_id::bigint,
+		       ar.nama AS nama_akreditasi, a.akred_sp_sk AS sk,
 		       to_char(a.akred_sp_tmt, 'YYYY-MM-DD') AS tanggal,
 		       to_char(a.akred_sp_tst, 'YYYY-MM-DD') AS berlaku_sampai
 		FROM public.akreditasi_sp AS a
 		LEFT JOIN ref.akreditasi AS ar
 		  ON ar.akreditasi_id = a.akreditasi_id
 		 AND ar.expired_date IS NULL
-		WHERE a.sekolah_id = s.sekolah_id
-		  AND a.soft_delete = 0
-		ORDER BY a.akred_sp_tmt DESC, a.last_update DESC
-		LIMIT 1
-	) AS ak ON TRUE
+		WHERE a.soft_delete = 0
+		ORDER BY a.sekolah_id, a.akred_sp_tmt DESC, a.last_update DESC
+	) AS ak ON ak.sekolah_id = s.sekolah_id
 	WHERE s.soft_delete = 0`
 
 func (r *PostgresRepository) ListSchools(ctx context.Context, page, limit int, npsn string) ([]Profile, int64, error) {

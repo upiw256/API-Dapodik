@@ -49,7 +49,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	items, total, err := h.service.List(r.Context(), pagination.Page, pagination.Limit, filters)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil daftar PTK")
+		response.WriteInternalError(w, r, "gagal mengambil daftar PTK", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "daftar PTK berhasil diambil", items, utils.PaginationMeta(total, pagination))
@@ -67,7 +67,7 @@ func (h *Handler) getDetail(w http.ResponseWriter, r *http.Request) {
 			response.WriteError(w, http.StatusNotFound, "PTK tidak ditemukan")
 			return
 		}
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil detail PTK")
+		response.WriteInternalError(w, r, "gagal mengambil detail PTK", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "detail PTK berhasil diambil", item, nil)
@@ -80,7 +80,7 @@ func (h *Handler) listPembelajaran(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListPembelajaran(r.Context(), id, strings.TrimSpace(r.URL.Query().Get("semester_id")))
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil data pembelajaran PTK")
+		response.WriteInternalError(w, r, "gagal mengambil data pembelajaran PTK", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "data pembelajaran PTK berhasil diambil", items, nil)
@@ -93,7 +93,7 @@ func (h *Handler) listTugasTambahan(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := h.service.ListTugasTambahan(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil tugas tambahan PTK")
+		response.WriteInternalError(w, r, "gagal mengambil tugas tambahan PTK", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "tugas tambahan PTK berhasil diambil", items, nil)
@@ -106,7 +106,7 @@ func (h *Handler) getRiwayat(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.service.GetRiwayat(r.Context(), id)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "gagal mengambil riwayat PTK")
+		response.WriteInternalError(w, r, "gagal mengambil riwayat PTK", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "riwayat PTK berhasil diambil", item, nil)
