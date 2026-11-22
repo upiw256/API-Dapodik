@@ -127,3 +127,18 @@ func TestStudentRoutesValidateIDsAndHandleErrors(t *testing.T) {
 		}
 	})
 }
+
+func TestDetailResponseIncludesStudentNameBelowMessage(t *testing.T) {
+	const id = "a1b2c3d4-e5f6-4711-8223-aabbccddeeff"
+	store := &fakeStore{detail: Detail{PesertaDidikID: id, Nama: "Siswa Contoh"}}
+	w := httptest.NewRecorder()
+	testServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/peserta-didik/"+id, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	for _, field := range []string{`"message":"detail peserta didik berhasil diambil"`, `"nama_peserta_didik":"Siswa Contoh"`, `"data":{"peserta_didik_id":"` + id} {
+		if !strings.Contains(w.Body.String(), field) {
+			t.Errorf("response missing %s: %s", field, w.Body.String())
+		}
+	}
+}

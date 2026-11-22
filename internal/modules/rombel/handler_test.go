@@ -122,6 +122,24 @@ func TestRombelChildRoutesValidateIDsAndHideErrors(t *testing.T) {
 	})
 }
 
+func TestPembelajaranResponseIncludesClassAndHomeroomTeacher(t *testing.T) {
+	const id = "a1b2c3d4-e5f6-4711-8223-aabbccddeeff"
+	store := &fakeStore{
+		detail:       Detail{ID: id, Nama: "X IPA 1", WaliKelas: stringPtr("Guru Wali")},
+		pembelajaran: []Pembelajaran{{MataPelajaran: "Matematika", NamaGuru: "Guru Mapel"}},
+	}
+	w := httptest.NewRecorder()
+	testServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/rombel/"+id+"/pembelajaran", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	for _, field := range []string{`"message":"pembelajaran rombel berhasil diambil"`, `"nama_kelas":"X IPA 1"`, `"wali_kelas":"Guru Wali"`, `"data":[{`, `"mata_pelajaran":"Matematika"`} {
+		if !strings.Contains(w.Body.String(), field) {
+			t.Errorf("response missing %s: %s", field, w.Body.String())
+		}
+	}
+}
+
 func TestAnggotaResponseIncludesClassTeacherAndMembers(t *testing.T) {
 	const id = "a1b2c3d4-e5f6-4711-8223-aabbccddeeff"
 	store := &fakeStore{anggota: AnggotaResponse{RombelID: id, NamaKelas: "X IPA 1", WaliKelas: stringPtr("Guru Contoh"), Anggota: []Anggota{{PesertaDidikID: "b1b2c3d4-e5f6-4711-8223-aabbccddeeff", Nama: "Siswa Contoh"}}}}

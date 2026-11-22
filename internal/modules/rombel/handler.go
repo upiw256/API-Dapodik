@@ -91,12 +91,33 @@ func (h *Handler) listPembelajaran(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	detail, err := h.service.GetDetail(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.WriteError(w, http.StatusNotFound, "rombel tidak ditemukan")
+			return
+		}
+		response.WriteInternalError(w, r, "gagal mengambil detail rombel", err)
+		return
+	}
 	items, err := h.service.ListPembelajaran(r.Context(), id)
 	if err != nil {
 		response.WriteInternalError(w, r, "gagal mengambil pembelajaran rombel", err)
 		return
 	}
-	response.WriteSuccess(w, http.StatusOK, "pembelajaran rombel berhasil diambil", items, nil)
+	response.WriteJSON(w, http.StatusOK, struct {
+		Success   bool           `json:"success"`
+		Message   string         `json:"message"`
+		NamaKelas string         `json:"nama_kelas"`
+		WaliKelas *string        `json:"wali_kelas"`
+		Data      []Pembelajaran `json:"data"`
+	}{
+		Success:   true,
+		Message:   "pembelajaran rombel berhasil diambil",
+		NamaKelas: detail.Nama,
+		WaliKelas: detail.WaliKelas,
+		Data:      items,
+	})
 }
 func (h *Handler) getStatistics(w http.ResponseWriter, r *http.Request) {
 	id, ok := validRombelID(w, r)

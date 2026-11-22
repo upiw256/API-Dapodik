@@ -71,7 +71,17 @@ func (h *Handler) getDetail(w http.ResponseWriter, r *http.Request) {
 		response.WriteInternalError(w, r, "gagal mengambil detail peserta didik", err)
 		return
 	}
-	response.WriteSuccess(w, http.StatusOK, "detail peserta didik berhasil diambil", item, nil)
+	response.WriteJSON(w, http.StatusOK, struct {
+		Success          bool   `json:"success"`
+		Message          string `json:"message"`
+		NamaPesertaDidik string `json:"nama_peserta_didik"`
+		Data             Detail `json:"data"`
+	}{
+		Success:          true,
+		Message:          "detail peserta didik berhasil diambil",
+		NamaPesertaDidik: item.Nama,
+		Data:             item,
+	})
 }
 
 func (h *Handler) listRombel(w http.ResponseWriter, r *http.Request) {
