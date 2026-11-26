@@ -16,11 +16,21 @@ type Handler struct{ service *Service }
 func NewHandler(service *Service) *Handler { return &Handler{service: service} }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/pembelajaran", h.listAllPembelajaran)
 	mux.HandleFunc("GET /api/rombel", h.list)
 	mux.HandleFunc("GET /api/rombel/{rombongan_belajar_id}", h.getDetail)
 	mux.HandleFunc("GET /api/rombel/{rombongan_belajar_id}/anggota", h.listAnggota)
 	mux.HandleFunc("GET /api/rombel/{rombongan_belajar_id}/pembelajaran", h.listPembelajaran)
 	mux.HandleFunc("GET /api/rombel/{rombongan_belajar_id}/statistik", h.getStatistics)
+}
+
+func (h *Handler) listAllPembelajaran(w http.ResponseWriter, r *http.Request) {
+	items, err := h.service.ListAllPembelajaran(r.Context())
+	if err != nil {
+		response.WriteInternalError(w, r, "gagal mengambil seluruh pembelajaran", err)
+		return
+	}
+	response.WriteSuccess(w, http.StatusOK, "seluruh pembelajaran berhasil diambil", items, nil)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

@@ -18,6 +18,7 @@ type Config struct {
 	DBMinConns       int32
 	AppPort          string
 	APIKey           string
+	NPSN             string
 	Semester         string
 	HTTPReadTimeout  time.Duration
 	HTTPWriteTimeout time.Duration
@@ -33,6 +34,7 @@ func Load() (Config, error) {
 		DBDSN:            os.Getenv("DB_DSN"),
 		AppPort:          envOrDefault("APP_PORT", "8080"),
 		APIKey:           os.Getenv("API_KEY"),
+		NPSN:             os.Getenv("NPSN"),
 		Semester:         os.Getenv("SEMESTER"),
 		DBConnectTimeout: 5 * time.Second,
 		DBMaxConns:       10,
@@ -67,6 +69,9 @@ func Load() (Config, error) {
 	}
 	if cfg.APIKey == "" {
 		return Config{}, errors.New("API_KEY is required")
+	}
+	if cfg.NPSN == "" {
+		return Config{}, errors.New("NPSN is required")
 	}
 	if cfg.Semester == "" {
 		return Config{}, errors.New("SEMESTER is required (example: 2026/2027 Gasal)")

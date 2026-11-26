@@ -241,6 +241,40 @@ func (r *PostgresRepository) ListPembelajaran(ctx context.Context, id string) ([
 	return items, nil
 }
 
+func (r *PostgresRepository) ListAllPembelajaran(ctx context.Context) ([]Pembelajaran, error) {
+	const query = `
+	SELECT pb.pembelajaran_id::text, pb.rombongan_belajar_id::text, rb.nama, wali.nama,
+	       btrim(pb.semester_id), pb.mata_pelajaran_id, NULL::text,
+	       COALESCE(mp.nama, pb.nama_mata_pelajaran), ptk.ptk_id::text, ptk.nama, terdaftar.ptk_terdaftar_id::text,
+	       pb.sk_mengajar, to_char(pb.tanggal_sk_mengajar, 'YYYY-MM-DD'), pb.jam_mengajar_per_minggu::double precision,
+	       pb.status_di_kurikulum::integer, (pb.induk_pembelajaran_id IS NULL), pb.induk_pembelajaran_id::text
+	FROM public.pembelajaran AS pb
+	JOIN public.rombongan_belajar AS rb ON rb.rombongan_belajar_id = pb.rombongan_belajar_id AND rb.soft_delete = 0
+	LEFT JOIN public.ptk AS wali ON wali.ptk_id = rb.ptk_id AND wali.soft_delete = 0
+	JOIN public.ptk_terdaftar AS terdaftar ON terdaftar.ptk_terdaftar_id = pb.ptk_terdaftar_id AND terdaftar.soft_delete = 0
+	JOIN public.ptk AS ptk ON ptk.ptk_id = terdaftar.ptk_id AND ptk.soft_delete = 0
+	LEFT JOIN ref.mata_pelajaran AS mp ON mp.mata_pelajaran_id = pb.mata_pelajaran_id AND mp.expired_date IS NULL
+	WHERE pb.soft_delete = 0 AND ($1::text = '' OR btrim(pb.semester_id) = $1::text)
+	ORDER BY rb.nama, COALESCE(mp.nama, pb.nama_mata_pelajaran), ptk.nama, pb.pembelajaran_id`
+	rows, err := r.pool.Query(ctx, query, r.period.SemesterID)
+	if err != nil {
+		return nil, fmt.Errorf("query seluruh pembelajaran: %w", err)
+	}
+	defer rows.Close()
+	items := make([]Pembelajaran, 0)
+	for rows.Next() {
+		var item Pembelajaran
+		if err := rows.Scan(&item.ID, &item.RombelID, &item.NamaKelas, &item.WaliKelas, &item.SemesterID, &item.MataPelajaranID, &item.KodeMataPelajaran, &item.MataPelajaran, &item.PTKID, &item.NamaGuru, &item.PTKTerdaftarID, &item.SKMengajar, &item.TanggalSK, &item.JamPerMinggu, &item.StatusDiKurikulum, &item.Induk, &item.IndukPembelajaranID); err != nil {
+			return nil, fmt.Errorf("scan seluruh pembelajaran: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate seluruh pembelajaran: %w", err)
+	}
+	return items, nil
+}
+
 func (r *PostgresRepository) GetStatistics(ctx context.Context, id string) (Statistics, error) {
 	result := Statistics{Agama: make([]Distribution, 0), Usia: make([]AgeDistribution, 0), EvaluasiRaporTersedia: false}
 	const base = `

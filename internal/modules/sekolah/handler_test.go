@@ -36,6 +36,10 @@ func (f *fakeStore) ListSchools(_ context.Context, page, limit int, npsn string)
 	return f.schools, f.total, nil
 }
 
+func (f *fakeStore) GetConfiguredSchoolID(context.Context) (string, error) {
+	return "efb28aef-f65a-429e-8bb9-b9da7cba17d0", nil
+}
+
 func (f *fakeStore) GetSchool(_ context.Context, id string) (Profile, error) {
 	f.gotID = id
 	return f.profile, f.profileErr
@@ -128,7 +132,7 @@ func TestGetSchool(t *testing.T) {
 	id := "efb28aef-f65a-429e-8bb9-b9da7cba17d0"
 	store := &fakeStore{profile: Profile{SekolahID: id, Nama: "Sekolah Contoh"}}
 	w := httptest.NewRecorder()
-	newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/"+id, nil))
+	newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/detail", nil))
 	if w.Code != http.StatusOK || store.gotID != id {
 		t.Fatalf("status=%d id passed to store=%q body=%s", w.Code, store.gotID, w.Body.String())
 	}
@@ -138,16 +142,16 @@ func TestGetSchoolNotFoundAndInvalidID(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		store := &fakeStore{profileErr: ErrNotFound}
 		w := httptest.NewRecorder()
-		newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/efb28aef-f65a-429e-8bb9-b9da7cba17d0", nil))
+		newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/detail", nil))
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
 		}
 	})
-	t.Run("invalid UUID", func(t *testing.T) {
+	t.Run("UUID route removed", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		newTestServer(&fakeStore{}).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/not-a-uuid", nil))
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
 		}
 	})
 }
@@ -156,7 +160,7 @@ func TestGetLongitudinalPassesSemesterFilter(t *testing.T) {
 	id := "efb28aef-f65a-429e-8bb9-b9da7cba17d0"
 	store := &fakeStore{longitudinal: []Longitudinal{{SekolahID: id, SemesterID: "20251", Listrik: []Listrik{}, Internet: []Internet{}}}}
 	w := httptest.NewRecorder()
-	newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/"+id+"/longitudinal?semester_id=20251", nil))
+	newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/longitudinal?semester_id=20251", nil))
 	if w.Code != http.StatusOK || store.gotID != id || store.gotSemester != "20251" {
 		t.Fatalf("status=%d id=%q semester=%q body=%s", w.Code, store.gotID, store.gotSemester, w.Body.String())
 	}
@@ -169,9 +173,9 @@ func TestSchoolCollectionEndpoints(t *testing.T) {
 		path string
 		call func(*fakeStore) bool
 	}{
-		{name: "jurusan", path: "/api/sekolah/" + id + "/jurusan", call: func(s *fakeStore) bool { return s.gotID == id }},
-		{name: "rombel", path: "/api/sekolah/" + id + "/rombel?semester_id=20251", call: func(s *fakeStore) bool { return s.gotID == id && s.gotSemester == "20251" }},
-		{name: "ruang", path: "/api/sekolah/" + id + "/ruang", call: func(s *fakeStore) bool { return s.gotID == id }},
+		{name: "jurusan", path: "/api/sekolah/jurusan", call: func(s *fakeStore) bool { return s.gotID == id }},
+		{name: "rombel", path: "/api/sekolah/rombel?semester_id=20251", call: func(s *fakeStore) bool { return s.gotID == id && s.gotSemester == "20251" }},
+		{name: "ruang", path: "/api/sekolah/ruang", call: func(s *fakeStore) bool { return s.gotID == id }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -188,7 +192,7 @@ func TestSchoolCollectionEndpoints(t *testing.T) {
 func TestSchoolStoreErrorsAreHidden(t *testing.T) {
 	store := &fakeStore{longitudinalErr: errors.New("database connection details")}
 	w := httptest.NewRecorder()
-	newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/efb28aef-f65a-429e-8bb9-b9da7cba17d0/longitudinal", nil))
+	newTestServer(store).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/sekolah/longitudinal", nil))
 	if w.Code != http.StatusInternalServerError || strings.Contains(w.Body.String(), "database connection details") {
 		t.Fatalf("unexpected response status=%d body=%s", w.Code, w.Body.String())
 	}
@@ -198,11 +202,11 @@ func TestSchoolRoutesRejectNonGETMethods(t *testing.T) {
 	id := "efb28aef-f65a-429e-8bb9-b9da7cba17d0"
 	paths := []string{
 		"/api/sekolah",
-		"/api/sekolah/" + id,
-		"/api/sekolah/" + id + "/longitudinal",
-		"/api/sekolah/" + id + "/jurusan",
-		"/api/sekolah/" + id + "/rombel",
-		"/api/sekolah/" + id + "/ruang",
+		"/api/sekolah/detail",
+		"/api/sekolah/longitudinal",
+		"/api/sekolah/jurusan",
+		"/api/sekolah/rombel",
+		"/api/sekolah/ruang",
 	}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {

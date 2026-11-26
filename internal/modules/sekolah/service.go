@@ -14,6 +14,50 @@ func (s *Service) ListSchools(ctx context.Context, page, limit int, npsn string)
 	return s.store.ListSchools(ctx, page, limit, npsn)
 }
 
+func (s *Service) configuredSchoolID(ctx context.Context) (string, error) {
+	return s.store.GetConfiguredSchoolID(ctx)
+}
+
+func (s *Service) GetConfiguredSchool(ctx context.Context) (Profile, error) {
+	id, err := s.configuredSchoolID(ctx)
+	if err != nil {
+		return Profile{}, err
+	}
+	return s.store.GetSchool(ctx, id)
+}
+
+func (s *Service) GetConfiguredLongitudinal(ctx context.Context, semesterID string) ([]Longitudinal, error) {
+	id, err := s.configuredSchoolID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.store.GetLongitudinal(ctx, id, semesterID)
+}
+
+func (s *Service) ListConfiguredJurusan(ctx context.Context) ([]Jurusan, error) {
+	id, err := s.configuredSchoolID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.store.ListJurusan(ctx, id)
+}
+
+func (s *Service) ListConfiguredRombel(ctx context.Context, semesterID string) ([]Rombel, error) {
+	id, err := s.configuredSchoolID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.store.ListRombel(ctx, id, semesterID)
+}
+
+func (s *Service) ListConfiguredRooms(ctx context.Context) ([]Room, error) {
+	id, err := s.configuredSchoolID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.store.ListRooms(ctx, id)
+}
+
 func (s *Service) GetSchool(ctx context.Context, id string) (Profile, error) {
 	return s.store.GetSchool(ctx, id)
 }

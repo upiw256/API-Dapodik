@@ -134,4 +134,4 @@ dapodik-readonly-api/
 
   * [x] Pastikan build binary API berjalan bersih tanpa *warning*.
 
-  * Buat/perbarui file dokumentasi `API_DOCS.md` berisi daftar lengkap seluruh *endpoint* (Fase 1–6), contoh `curl`, query parameters, dan contoh JSON response.
+  * [x] Buat/perbarui file dokumentasi `API_DOCS.md` berisi daftar lengkap seluruh *endpoint* (Fase 1–6), contoh `curl`, query parameters, dan contoh JSON response.

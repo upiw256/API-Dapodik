@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"dapodik-readonly-api/internal/period"
 	"github.com/jackc/pgx/v5"
@@ -14,6 +15,7 @@ var ErrNotFound = errors.New("sekolah tidak ditemukan")
 
 type Store interface {
 	ListSchools(context.Context, int, int, string) ([]Profile, int64, error)
+	GetConfiguredSchoolID(context.Context) (string, error)
 	GetSchool(context.Context, string) (Profile, error)
 	GetLongitudinal(context.Context, string, string) ([]Longitudinal, error)
 	ListJurusan(context.Context, string) ([]Jurusan, error)
@@ -24,14 +26,55 @@ type Store interface {
 type PostgresRepository struct {
 	pool   *pgxpool.Pool
 	period period.Selection
+	npsn   string
 }
 
-func NewPostgresRepository(pool *pgxpool.Pool, selected ...period.Selection) *PostgresRepository {
+func NewPostgresRepository(pool *pgxpool.Pool, selected ...any) *PostgresRepository {
 	r := &PostgresRepository{pool: pool}
-	if len(selected) > 0 {
-		r.period = selected[0]
+	for _, value := range selected {
+		switch v := value.(type) {
+		case period.Selection:
+			r.period = v
+		case string:
+			r.npsn = strings.TrimSpace(v)
+		}
 	}
 	return r
+}
+
+func (r *PostgresRepository) ensureAllowedSchool(ctx context.Context, id string) error {
+	var allowed bool
+	if err := r.pool.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM public.sekolah
+		WHERE sekolah_id = $1::uuid AND soft_delete = 0
+		  AND ($2::text = '' OR btrim(npsn) = $2::text)
+	)`, id, r.npsn).Scan(&allowed); err != nil {
+		return fmt.Errorf("check school access: %w", err)
+	}
+	if !allowed {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *PostgresRepository) GetConfiguredSchoolID(ctx context.Context) (string, error) {
+	if r.npsn == "" {
+		return "", ErrNotFound
+	}
+	var id string
+	err := r.pool.QueryRow(ctx, `
+		SELECT sekolah_id::text
+		FROM public.sekolah
+		WHERE soft_delete = 0 AND btrim(npsn) = $1::text
+		ORDER BY sekolah_id
+		LIMIT 1`, r.npsn).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("find configured school: %w", err)
+	}
+	return id, nil
 }
 
 const profileSelect = `
@@ -96,14 +139,14 @@ func (r *PostgresRepository) ListSchools(ctx context.Context, page, limit int, n
 		SELECT count(*)
 		FROM public.sekolah
 		WHERE soft_delete = 0
-		  AND ($1::text = '' OR btrim(npsn) = $1::text)`, npsn).Scan(&total); err != nil {
+		  AND ($1::text = '' OR btrim(npsn) = $1::text)`, r.listNPSN(npsn)).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count schools: %w", err)
 	}
 
 	query := profileSelect + `
 	  AND ($1::text = '' OR btrim(s.npsn) = $1::text)
 	ORDER BY s.nama, s.sekolah_id`
-	args := []any{npsn}
+	args := []any{r.listNPSN(npsn)}
 	if limit > 0 {
 		query += ` LIMIT $2 OFFSET $3`
 		args = append(args, limit, (page-1)*limit)
@@ -128,9 +171,16 @@ func (r *PostgresRepository) ListSchools(ctx context.Context, page, limit int, n
 	return items, total, nil
 }
 
+func (r *PostgresRepository) listNPSN(requested string) string {
+	if r.npsn != "" {
+		return r.npsn
+	}
+	return requested
+}
+
 func (r *PostgresRepository) GetSchool(ctx context.Context, id string) (Profile, error) {
-	query := profileSelect + ` AND s.sekolah_id = $1::uuid`
-	item, err := scanProfile(r.pool.QueryRow(ctx, query, id))
+	query := profileSelect + ` AND s.sekolah_id = $1::uuid AND ($2::text = '' OR btrim(s.npsn) = $2::text)`
+	item, err := scanProfile(r.pool.QueryRow(ctx, query, id, r.npsn))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Profile{}, ErrNotFound
@@ -199,6 +249,9 @@ func valueOrEmpty(value *string) string {
 }
 
 func (r *PostgresRepository) GetLongitudinal(ctx context.Context, id, semesterID string) ([]Longitudinal, error) {
+	if err := r.ensureAllowedSchool(ctx, id); err != nil {
+		return nil, err
+	}
 	if r.period.SemesterID != "" {
 		semesterID = r.period.SemesterID
 	}
@@ -434,6 +487,9 @@ func (r *PostgresRepository) listSanitation(ctx context.Context, id, semesterID 
 }
 
 func (r *PostgresRepository) ListJurusan(ctx context.Context, id string) ([]Jurusan, error) {
+	if err := r.ensureAllowedSchool(ctx, id); err != nil {
+		return nil, err
+	}
 	const query = `
 		SELECT js.jurusan_sp_id::text,
 		       js.jurusan_id,
@@ -470,6 +526,9 @@ func (r *PostgresRepository) ListJurusan(ctx context.Context, id string) ([]Juru
 }
 
 func (r *PostgresRepository) ListRombel(ctx context.Context, id, semesterID string) ([]Rombel, error) {
+	if err := r.ensureAllowedSchool(ctx, id); err != nil {
+		return nil, err
+	}
 	if r.period.SemesterID != "" {
 		semesterID = r.period.SemesterID
 	}
@@ -542,6 +601,9 @@ func (r *PostgresRepository) ListRombel(ctx context.Context, id, semesterID stri
 }
 
 func (r *PostgresRepository) ListRooms(ctx context.Context, id string) ([]Room, error) {
+	if err := r.ensureAllowedSchool(ctx, id); err != nil {
+		return nil, err
+	}
 	const query = `
 		SELECT ruang.id_ruang::text,
 		       ruang.jenis_prasarana_id,

@@ -7,6 +7,7 @@ type Store interface {
 	GetDetail(context.Context, string) (Detail, error)
 	ListAnggota(context.Context, string) (AnggotaResponse, error)
 	ListPembelajaran(context.Context, string) ([]Pembelajaran, error)
+	ListAllPembelajaran(context.Context) ([]Pembelajaran, error)
 	GetStatistics(context.Context, string) (Statistics, error)
 }
 
@@ -24,6 +25,9 @@ func (s *Service) ListAnggota(ctx context.Context, id string) (AnggotaResponse, 
 }
 func (s *Service) ListPembelajaran(ctx context.Context, id string) ([]Pembelajaran, error) {
 	return s.store.ListPembelajaran(ctx, id)
+}
+func (s *Service) ListAllPembelajaran(ctx context.Context) ([]Pembelajaran, error) {
+	return s.store.ListAllPembelajaran(ctx)
 }
 func (s *Service) GetStatistics(ctx context.Context, id string) (Statistics, error) {
 	return s.store.GetStatistics(ctx, id)

@@ -26,11 +26,13 @@ $baseUrl = "http://localhost:8080"
 | Method | Endpoint | Parameter |
 | --- | --- | --- |
 | GET | `/api/sekolah` | `npsn`, `page`, `limit` |
-| GET | `/api/sekolah/{sekolah_id}` | UUID sekolah |
-| GET | `/api/sekolah/{sekolah_id}/longitudinal` | `semester_id` |
-| GET | `/api/sekolah/{sekolah_id}/jurusan` | — |
-| GET | `/api/sekolah/{sekolah_id}/rombel` | `semester_id` |
-| GET | `/api/sekolah/{sekolah_id}/ruang` | — |
+| GET | `/api/sekolah/detail` | — |
+| GET | `/api/sekolah/longitudinal` | `semester_id` |
+| GET | `/api/sekolah/jurusan` | — |
+| GET | `/api/sekolah/rombel` | `semester_id` |
+| GET | `/api/sekolah/ruang` | — |
+
+Atur `NPSN` di `.env` untuk menentukan sekolah yang dipakai seluruh endpoint ini; aplikasi gagal startup jika `NPSN` belum diisi. Daftar `/api/sekolah` selalu dibatasi ke NPSN tersebut; parameter `npsn` tidak dapat memperluas hasil. Endpoint detail dan data terkait tidak memerlukan UUID sekolah karena aplikasi mengambil sekolah dari konfigurasi `NPSN`.
 
 ## PTK
 
@@ -91,6 +93,7 @@ Respons detail menyediakan `nama_peserta_didik` setelah `message`, serta biodata
 | Method | Endpoint | Parameter |
 | --- | --- | --- |
 | GET | `/api/rombel` | `sekolah_id`, `semester_id`, `tingkat_pendidikan_id`, `jenis_rombel`, `kurikulum_id`, `jurusan_sp_id`, `ptk_id`, `search`, `page`, `limit` |
+| GET | `/api/pembelajaran` | Semua pembelajaran semester aktif, termasuk ID rombel pada tiap baris |
 | GET | `/api/rombel/{rombongan_belajar_id}` | UUID rombel |
 | GET | `/api/rombel/{rombongan_belajar_id}/anggota` | UUID rombel |
 | GET | `/api/rombel/{rombongan_belajar_id}/pembelajaran` | UUID rombel |
@@ -98,10 +101,11 @@ Respons detail menyediakan `nama_peserta_didik` setelah `message`, serta biodata
 
 Daftar rombel menyertakan jumlah siswa aktif dan label sekolah, wali kelas, ruang, semester, tingkat, kurikulum, jenis rombel, serta jurusan jika tersedia. Jenis rombel `18` dan `51` dikecualikan dari endpoint daftar. Detail juga berisi kebutuhan khusus dan ringkasan status validasi. Endpoint `/anggota` membungkus hasil dalam objek yang memuat `nama_kelas`, `wali_kelas`, dan array `anggota`; array tetap kosong (`[]`) jika belum ada siswa.
 
-Endpoint `/pembelajaran` juga menyertakan `nama_kelas` dan `wali_kelas` pada respons, bersama daftar pembelajaran di `data`.
+Endpoint `/api/pembelajaran` mengambil semua pembelajaran semester aktif dalam satu permintaan dan menyertakan `rombongan_belajar_id`, `nama_kelas`, serta `wali_kelas` pada setiap baris. Endpoint `/api/rombel/{rombongan_belajar_id}/pembelajaran` tetap tersedia untuk satu rombel dan menyertakan metadata kelas di tingkat teratas.
 
 ```powershell
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/rombel?sekolah_id=UUID-SEKOLAH&semester_id=20251&page=1&limit=20"
+Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/pembelajaran"
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/rombel/UUID-ROMBEL"
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/rombel/UUID-ROMBEL/anggota"
 Invoke-RestMethod -Headers $headers -Uri "$baseUrl/api/rombel/UUID-ROMBEL/pembelajaran"
@@ -121,11 +125,11 @@ Contoh di bawah memakai nilai ilustrasi. Field opsional yang bernilai kosong dap
 | `GET /api/ref/tahun-ajaran` | `data tahun ajaran berhasil diambil` | Array objek tahun ajaran; tanpa `meta` |
 | `GET /api/ref/wilayah/{kode_wilayah}` | `hierarki wilayah berhasil diambil` | Objek dengan `desa_kelurahan`, `kecamatan`, `kabupaten_kota`, `provinsi`; tanpa `meta` |
 | `GET /api/sekolah` | `daftar sekolah berhasil diambil` | Array profil sekolah; `meta`: page, limit, total, total_pages |
-| `GET /api/sekolah/{sekolah_id}` | `detail sekolah berhasil diambil` | Satu profil sekolah; tanpa `meta` |
-| `GET /api/sekolah/{sekolah_id}/longitudinal` | `data longitudinal sekolah berhasil diambil` | Array data longitudinal; tanpa `meta` |
-| `GET /api/sekolah/{sekolah_id}/jurusan` | `jurusan sekolah berhasil diambil` | Array jurusan; tanpa `meta` |
-| `GET /api/sekolah/{sekolah_id}/rombel` | `rombongan belajar sekolah berhasil diambil` | Array rombel; tanpa `meta` |
-| `GET /api/sekolah/{sekolah_id}/ruang` | `ruang sekolah berhasil diambil` | Array ruang; tanpa `meta` |
+| `GET /api/sekolah/detail` | `detail sekolah berhasil diambil` | Satu profil sekolah; tanpa `meta` |
+| `GET /api/sekolah/longitudinal` | `data longitudinal sekolah berhasil diambil` | Array data longitudinal; tanpa `meta` |
+| `GET /api/sekolah/jurusan` | `jurusan sekolah berhasil diambil` | Array jurusan; tanpa `meta` |
+| `GET /api/sekolah/rombel` | `rombongan belajar sekolah berhasil diambil` | Array rombel; tanpa `meta` |
+| `GET /api/sekolah/ruang` | `ruang sekolah berhasil diambil` | Array ruang; tanpa `meta` |
 | `GET /api/ptk` | `daftar PTK berhasil diambil` | Array PTK; `meta`: page, limit, total, total_pages |
 | `GET /api/ptk/{ptk_id}` | `detail PTK berhasil diambil` | Satu detail PTK; tanpa `meta` |
 | `GET /api/ptk/{ptk_id}/pembelajaran` | `data pembelajaran PTK berhasil diambil` | Array pembelajaran PTK; tanpa `meta` |
@@ -136,6 +140,7 @@ Contoh di bawah memakai nilai ilustrasi. Field opsional yang bernilai kosong dap
 | `GET /api/peserta-didik/{peserta_didik_id}/rombel` | `riwayat rombel peserta didik berhasil diambil` | Array rombel siswa; tanpa `meta` |
 | `GET /api/peserta-didik/{peserta_didik_id}/prestasi-beasiswa` | `prestasi dan beasiswa peserta didik berhasil diambil` | Objek berisi array `prestasi` dan `beasiswa`; tanpa `meta` |
 | `GET /api/rombel` | `daftar rombel berhasil diambil` | Array rombel; `meta`: page, limit, total, total_pages |
+| `GET /api/pembelajaran` | `seluruh pembelajaran berhasil diambil` | Array pembelajaran semester aktif; setiap baris menyertakan ID dan nama rombel; tanpa `meta` |
 | `GET /api/rombel/{rombongan_belajar_id}` | `detail rombel berhasil diambil` | Satu detail rombel; tanpa `meta` |
 | `GET /api/rombel/{rombongan_belajar_id}/anggota` | `anggota rombel berhasil diambil` | Objek berisi identitas kelas, wali kelas, dan array `anggota`; tanpa `meta` |
 | `GET /api/rombel/{rombongan_belajar_id}/pembelajaran` | `pembelajaran rombel berhasil diambil` | `nama_kelas`, `wali_kelas`, dan array pembelajaran `data` berada di tingkat teratas; tanpa `meta` |
@@ -249,6 +254,10 @@ Semua array endpoint sekolah berisi objek sesuai jenis datanya; berikut contoh f
 
 ```json
 {"success":true,"message":"pembelajaran rombel berhasil diambil","nama_kelas":"X IPA 1","wali_kelas":"Nama PTK","data":[{"pembelajaran_id":"UUID-PEMBELAJARAN","semester_id":"20261","mata_pelajaran_id":300110000,"mata_pelajaran":"Bahasa Indonesia","ptk_id":"UUID-PTK","nama_guru":"Nama PTK","ptk_terdaftar_id":"UUID-PTK-TERDAFTAR","sk_mengajar":"SK/001","jam_mengajar_per_minggu":4,"status_di_kurikulum":1,"induk":true}]}
+```
+
+```json
+{"success":true,"message":"seluruh pembelajaran berhasil diambil","data":[{"pembelajaran_id":"UUID-PEMBELAJARAN","rombongan_belajar_id":"UUID-ROMBEL","nama_kelas":"X IPA 1","wali_kelas":"Nama Wali Kelas","semester_id":"20261","mata_pelajaran_id":300110000,"mata_pelajaran":"Bahasa Indonesia","ptk_id":"UUID-PTK-PENGAJAR","nama_guru":"Nama Pengajar","ptk_terdaftar_id":"UUID-PTK-TERDAFTAR","sk_mengajar":"SK/001","jam_mengajar_per_minggu":4,"status_di_kurikulum":1,"induk":true}]}
 ```
 
 ```json

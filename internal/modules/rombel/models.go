@@ -96,6 +96,9 @@ type AnggotaResponse struct {
 
 type Pembelajaran struct {
 	ID                  string  `json:"pembelajaran_id"`
+	RombelID            string  `json:"rombongan_belajar_id,omitempty"`
+	NamaKelas           string  `json:"nama_kelas,omitempty"`
+	WaliKelas           *string `json:"wali_kelas,omitempty"`
 	SemesterID          string  `json:"semester_id"`
 	MataPelajaranID     int     `json:"mata_pelajaran_id"`
 	KodeMataPelajaran   *string `json:"kode_mata_pelajaran,omitempty"`

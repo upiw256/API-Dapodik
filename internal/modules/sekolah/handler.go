@@ -1,7 +1,6 @@
 package sekolah
 
 import (
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -20,11 +19,11 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sekolah", h.listSchools)
-	mux.HandleFunc("GET /api/sekolah/{sekolah_id}", h.getSchool)
-	mux.HandleFunc("GET /api/sekolah/{sekolah_id}/longitudinal", h.getLongitudinal)
-	mux.HandleFunc("GET /api/sekolah/{sekolah_id}/jurusan", h.listJurusan)
-	mux.HandleFunc("GET /api/sekolah/{sekolah_id}/rombel", h.listRombel)
-	mux.HandleFunc("GET /api/sekolah/{sekolah_id}/ruang", h.listRooms)
+	mux.HandleFunc("GET /api/sekolah/detail", h.getSchool)
+	mux.HandleFunc("GET /api/sekolah/longitudinal", h.getLongitudinal)
+	mux.HandleFunc("GET /api/sekolah/jurusan", h.listJurusan)
+	mux.HandleFunc("GET /api/sekolah/rombel", h.listRombel)
+	mux.HandleFunc("GET /api/sekolah/ruang", h.listRooms)
 }
 
 func (h *Handler) listSchools(w http.ResponseWriter, r *http.Request) {
@@ -43,12 +42,7 @@ func (h *Handler) listSchools(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getSchool(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("sekolah_id")
-	if !isUUID(id) {
-		response.WriteError(w, http.StatusBadRequest, "sekolah_id harus berupa UUID yang valid")
-		return
-	}
-	item, err := h.service.GetSchool(r.Context(), id)
+	item, err := h.service.GetConfiguredSchool(r.Context())
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			response.WriteError(w, http.StatusNotFound, "sekolah tidak ditemukan")
@@ -61,12 +55,7 @@ func (h *Handler) getSchool(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getLongitudinal(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("sekolah_id")
-	if !isUUID(id) {
-		response.WriteError(w, http.StatusBadRequest, "sekolah_id harus berupa UUID yang valid")
-		return
-	}
-	items, err := h.service.GetLongitudinal(r.Context(), id, r.URL.Query().Get("semester_id"))
+	items, err := h.service.GetConfiguredLongitudinal(r.Context(), r.URL.Query().Get("semester_id"))
 	if err != nil {
 		response.WriteInternalError(w, r, "gagal mengambil data longitudinal sekolah", err)
 		return
@@ -75,12 +64,7 @@ func (h *Handler) getLongitudinal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listJurusan(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("sekolah_id")
-	if !isUUID(id) {
-		response.WriteError(w, http.StatusBadRequest, "sekolah_id harus berupa UUID yang valid")
-		return
-	}
-	items, err := h.service.ListJurusan(r.Context(), id)
+	items, err := h.service.ListConfiguredJurusan(r.Context())
 	if err != nil {
 		response.WriteInternalError(w, r, "gagal mengambil jurusan sekolah", err)
 		return
@@ -89,12 +73,7 @@ func (h *Handler) listJurusan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listRombel(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("sekolah_id")
-	if !isUUID(id) {
-		response.WriteError(w, http.StatusBadRequest, "sekolah_id harus berupa UUID yang valid")
-		return
-	}
-	items, err := h.service.ListRombel(r.Context(), id, r.URL.Query().Get("semester_id"))
+	items, err := h.service.ListConfiguredRombel(r.Context(), r.URL.Query().Get("semester_id"))
 	if err != nil {
 		response.WriteInternalError(w, r, "gagal mengambil rombongan belajar sekolah", err)
 		return
@@ -103,24 +82,10 @@ func (h *Handler) listRombel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listRooms(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("sekolah_id")
-	if !isUUID(id) {
-		response.WriteError(w, http.StatusBadRequest, "sekolah_id harus berupa UUID yang valid")
-		return
-	}
-	items, err := h.service.ListRooms(r.Context(), id)
+	items, err := h.service.ListConfiguredRooms(r.Context())
 	if err != nil {
 		response.WriteInternalError(w, r, "gagal mengambil ruang sekolah", err)
 		return
 	}
 	response.WriteSuccess(w, http.StatusOK, "ruang sekolah berhasil diambil", items, nil)
-}
-
-func isUUID(value string) bool {
-	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
-		return false
-	}
-	compact := strings.ReplaceAll(value, "-", "")
-	decoded, err := hex.DecodeString(compact)
-	return err == nil && len(decoded) == 16
 }

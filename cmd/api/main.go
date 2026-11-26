@@ -53,7 +53,7 @@ func runAPI(serverCtx context.Context) error {
 	referensiRepository := referensi.NewPostgresRepository(pool, selectedPeriod)
 	referensiService := referensi.NewService(referensiRepository)
 	referensi.NewHandler(referensiService).RegisterRoutes(mux)
-	sekolahRepository := sekolah.NewPostgresRepository(pool, selectedPeriod)
+	sekolahRepository := sekolah.NewPostgresRepository(pool, selectedPeriod, cfg.NPSN)
 	sekolahService := sekolah.NewService(sekolahRepository)
 	sekolah.NewHandler(sekolahService).RegisterRoutes(mux)
 	ptkRepository := ptk.NewPostgresRepository(pool, selectedPeriod)

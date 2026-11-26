@@ -38,6 +38,9 @@ func (f *fakeStore) ListPembelajaran(_ context.Context, id string) ([]Pembelajar
 	f.id = id
 	return f.pembelajaran, f.err
 }
+func (f *fakeStore) ListAllPembelajaran(_ context.Context) ([]Pembelajaran, error) {
+	return f.pembelajaran, f.err
+}
 func (f *fakeStore) GetStatistics(_ context.Context, id string) (Statistics, error) {
 	f.id = id
 	return f.statistics, f.err
@@ -58,6 +61,27 @@ func TestListPassesFiltersAndPagination(t *testing.T) {
 	}
 	if store.page != 2 || store.limit != 5 || store.filters.SekolahID == "" || store.filters.SemesterID != "20251" || store.filters.TingkatPendidikanID != "10" || store.filters.JenisRombel != "1" || store.filters.KurikulumID != "2" || store.filters.JurusanSPID == "" || store.filters.PTKID == "" || store.filters.Search != "Contoh" {
 		t.Fatalf("unexpected store arguments: %+v", store)
+	}
+}
+
+func TestListAllPembelajaranNeedsNoRombelUUID(t *testing.T) {
+	store := &fakeStore{pembelajaran: []Pembelajaran{{
+		ID:            "pembelajaran-1",
+		RombelID:      "rombel-1",
+		NamaKelas:     "X - 1",
+		MataPelajaran: "Bahasa Indonesia",
+	}}}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/pembelajaran", nil)
+	testServer(store).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	for _, expected := range []string{"pembelajaran-1", "rombel-1", "X - 1", "Bahasa Indonesia"} {
+		if !strings.Contains(recorder.Body.String(), expected) {
+			t.Errorf("response does not contain %q: %s", expected, recorder.Body.String())
+		}
 	}
 }
 
