@@ -6,7 +6,7 @@ Atur `SEMESTER` di `.env`, misalnya `SEMESTER="2026/2027 Gasal"`. Saat startup a
 
 Untuk endpoint daftar yang menyediakan `limit`, hasil tidak dipotong jika `limit` tidak dikirim. `page` hanya diterapkan bersama `limit`. Jika `limit` diberikan tanpa `page`, halaman pertama digunakan. Nilai maksimum `limit` adalah 100.
 
-Rate limit berlaku gabungan pada semua endpoint: maksimal 5 request terautentikasi per alamat IP. Request berikutnya mendapat HTTP `429 Too Many Requests` dan header `Retry-After` dalam detik. Jika tidak ada request selama 1 menit, hitungan di-reset walaupun jendela 10 menit belum lewat. Request `OPTIONS` untuk preflight tidak dihitung. Jika API berada di belakang reverse proxy, batas ini menggunakan alamat peer yang dilihat aplikasi.
+Rate limit berlaku gabungan pada semua endpoint: maksimal 100 request terautentikasi per alamat IP. Request berikutnya mendapat HTTP `429 Too Many Requests` dan header `Retry-After` dalam detik. Jika tidak ada request selama 1 menit, hitungan di-reset walaupun jendela 10 menit belum lewat. Request `OPTIONS` untuk preflight tidak dihitung. Jika API berada di belakang reverse proxy, batas ini menggunakan alamat peer yang dilihat aplikasi.
 
 ```powershell
 $headers = @{ "X-API-Key" = "ISI_API_KEY" }

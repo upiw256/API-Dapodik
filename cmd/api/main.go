@@ -67,7 +67,7 @@ func runAPI(serverCtx context.Context) error {
 	rombel.NewHandler(rombelService).RegisterRoutes(mux)
 
 	var handler http.Handler = mux
-	handler = middleware.RateLimit(5, 10*time.Minute)(handler)
+	handler = middleware.RateLimit(100, 10*time.Minute)(handler)
 	handler = middleware.APIKey(cfg.APIKey)(handler)
 	handler = middleware.ReadOnly(handler)
 	handler = middleware.RequestLog(handler)
