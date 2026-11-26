@@ -32,7 +32,7 @@ $baseUrl = "http://localhost:8080"
 | GET | `/api/sekolah/rombel` | `semester_id` |
 | GET | `/api/sekolah/ruang` | — |
 
-Atur `NPSN` di `.env` untuk menentukan sekolah yang dipakai seluruh endpoint ini; aplikasi gagal startup jika `NPSN` belum diisi. Daftar `/api/sekolah` selalu dibatasi ke NPSN tersebut; parameter `npsn` tidak dapat memperluas hasil. Endpoint detail dan data terkait tidak memerlukan UUID sekolah karena aplikasi mengambil sekolah dari konfigurasi `NPSN`.
+Atur `NPSN` di `.env` untuk menentukan sekolah yang dipakai seluruh endpoint ini; aplikasi gagal startup jika `NPSN` belum diisi. Daftar `/api/sekolah` (dengan atau tanpa garis miring di akhir URL) selalu dibatasi ke NPSN tersebut; parameter `npsn` tidak dapat memperluas hasil. Endpoint detail dan data terkait tidak memerlukan UUID sekolah karena aplikasi mengambil sekolah dari konfigurasi `NPSN`.
 
 ## PTK
 

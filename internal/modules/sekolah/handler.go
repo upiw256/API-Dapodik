@@ -19,11 +19,20 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sekolah", h.listSchools)
+	mux.HandleFunc("GET /api/sekolah/", h.listSchoolsPath)
 	mux.HandleFunc("GET /api/sekolah/detail", h.getSchool)
 	mux.HandleFunc("GET /api/sekolah/longitudinal", h.getLongitudinal)
 	mux.HandleFunc("GET /api/sekolah/jurusan", h.listJurusan)
 	mux.HandleFunc("GET /api/sekolah/rombel", h.listRombel)
 	mux.HandleFunc("GET /api/sekolah/ruang", h.listRooms)
+}
+
+func (h *Handler) listSchoolsPath(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/sekolah/" {
+		http.NotFound(w, r)
+		return
+	}
+	h.listSchools(w, r)
 }
 
 func (h *Handler) listSchools(w http.ResponseWriter, r *http.Request) {
